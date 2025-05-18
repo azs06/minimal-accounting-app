@@ -34,11 +34,11 @@ This is a minimal accounting software designed for small businesses with 7-12 em
 1. With the virtual environment activated, start the application:
    ```
    export FLASK_APP=src/main.py
-   flask run --host=0.0.0.0 --port=5000
+   flask run --host=0.0.0.0 --port=8080
    ```
 2. Open your web browser and navigate to:
    ```
-   http://localhost:5000
+   http://localhost:8080
    ```
 
 ## Documentation
