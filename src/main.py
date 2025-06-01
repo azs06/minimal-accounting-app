@@ -6,6 +6,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from flask import Flask, send_from_directory, jsonify, request
 from src.extensions import db
 from werkzeug.security import generate_password_hash, check_password_hash
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, JWTManager
 from flask_migrate import Migrate
 
 # Import models
@@ -29,6 +30,7 @@ from src.routes.reports_bp import reports_bp # Added reports_bp
 
 app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), 'static'), instance_relative_config=True)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'a_very_secret_key_that_should_be_changed_in_production')
+app.config["JWT_SECRET_KEY"] = os.environ.get('JWT_SECRET_KEY', "another_super_secret_jwt_key_change_me") # Change this in your environment!
 
 # Configure SQLite database
 os.makedirs(app.instance_path, exist_ok=True)
@@ -37,6 +39,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{db_path}"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db.init_app(app)
+jwt = JWTManager(app)
 migrate = Migrate(app, db)
 
 # Register Blueprints
@@ -77,8 +80,9 @@ def login():
     if not user or not user.check_password(data['password']):
         return jsonify({'message': 'Invalid username or password'}), 401
     
-    # In a real app, you would return a JWT token or set a session cookie here
-    return jsonify({'message': 'Login successful', 'user_id': user.id, 'role': user.role}), 200
+    # Identity can be any data that is json serializable
+    access_token = create_access_token(identity=str(user.id)) # Cast user.id to string
+    return jsonify(access_token=access_token, user_id=user.id, role=user.role), 200
 
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
@@ -101,4 +105,3 @@ with app.app_context():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
-

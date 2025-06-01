@@ -2,15 +2,14 @@ from flask import Blueprint, request, jsonify
 from src.extensions import db
 from src.models.income import Income
 from datetime import datetime
+from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy.exc import IntegrityError
 
-# Placeholder for user authentication - in a real app, you'd get user_id from session/token
-# For now, we might require user_id in the request or use a default
-MOCK_USER_ID = 1 # Replace with actual user handling later
 
 income_bp = Blueprint("income_bp", __name__)
 
 @income_bp.route("/income", methods=["POST"])
+@jwt_required()
 def add_income():
     data = request.get_json()
     if not data or not data.get("description") or data.get("amount") is None or not data.get("date_received"):
@@ -24,13 +23,14 @@ def add_income():
     except ValueError:
         return jsonify({"message": "Invalid data format for amount or date_received (YYYY-MM-DD)"}), 400
 
+    current_user_id = int(get_jwt_identity()) # Cast identity back to int
     new_income = Income(
         description=data["description"],
         amount=amount,
         date_received=date_received,
         category=data.get("category"),
         notes=data.get("notes"),
-        user_id=data.get("user_id", MOCK_USER_ID) # Use provided user_id or mock
+        user_id=current_user_id 
     )
     try:
         db.session.add(new_income)
@@ -44,22 +44,30 @@ def add_income():
         return jsonify({"message": "An unexpected error occurred.", "error": str(e)}), 500
 
 @income_bp.route("/income", methods=["GET"])
+@jwt_required()
 def get_all_income():
-    # Add filtering by user_id in a real app
-    # incomes = Income.query.filter_by(user_id=MOCK_USER_ID).all()
-    incomes = Income.query.all()
+    current_user_id = int(get_jwt_identity()) # Cast identity back to int
+    # Only fetch income records for the currently authenticated user
+    incomes = Income.query.filter_by(user_id=current_user_id).all()
     return jsonify([income.to_dict() for income in incomes]), 200
 
 @income_bp.route("/income/<int:income_id>", methods=["GET"])
+@jwt_required()
 def get_income(income_id):
+    current_user_id = int(get_jwt_identity()) # Cast identity back to int
     income = Income.query.get_or_404(income_id)
-    # Add check for user_id if necessary
+    if income.user_id != current_user_id:
+        return jsonify({"message": "Unauthorized to access this income record"}), 403
     return jsonify(income.to_dict()), 200
 
 @income_bp.route("/income/<int:income_id>", methods=["PUT"])
+@jwt_required()
 def update_income(income_id):
+    current_user_id = int(get_jwt_identity()) # Cast identity back to int
     income = Income.query.get_or_404(income_id)
-    # Add check for user_id if necessary
+    if income.user_id != current_user_id:
+        return jsonify({"message": "Unauthorized to update this income record"}), 403
+
     data = request.get_json()
 
     if data.get("description"):
@@ -93,9 +101,12 @@ def update_income(income_id):
         return jsonify({"message": "An unexpected error occurred.", "error": str(e)}), 500
 
 @income_bp.route("/income/<int:income_id>", methods=["DELETE"])
+@jwt_required()
 def delete_income(income_id):
+    current_user_id = int(get_jwt_identity()) # Cast identity back to int
     income = Income.query.get_or_404(income_id)
-    # Add check for user_id if necessary
+    if income.user_id != current_user_id:
+        return jsonify({"message": "Unauthorized to delete this income record"}), 403
     db.session.delete(income)
     db.session.commit()
     return '', 204
