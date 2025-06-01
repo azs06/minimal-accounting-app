@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 from src.extensions import db
 from src.models.employee import Employee, Salary
 from datetime import datetime, date
+from sqlalchemy.exc import IntegrityError
 
 # Placeholder for user authentication
 MOCK_USER_ID = 1
@@ -33,9 +34,14 @@ def add_employee():
         hire_date=hire_date,
         is_active=data.get("is_active", True)
     )
-    db.session.add(new_employee)
-    db.session.commit()
-    return jsonify(new_employee.to_dict()), 201
+    try:
+        db.session.add(new_employee)
+        db.session.commit()
+        return jsonify(new_employee.to_dict()), 201
+    except IntegrityError: # Should be caught by email check, but as a safeguard
+        db.session.rollback()
+        return jsonify({"message": "Database error: Employee with that email might already exist."}), 409
+
 
 @employee_bp.route("/employees", methods=["GET"])
 def get_all_employees():
@@ -51,13 +57,21 @@ def get_employee(employee_id):
 def update_employee(employee_id):
     employee = Employee.query.get_or_404(employee_id)
     data = request.get_json()
+    if not data:
+        return jsonify({"message": "Request body must be JSON"}), 400
 
     if "first_name" in data: employee.first_name = data["first_name"]
     if "last_name" in data: employee.last_name = data["last_name"]
-    if "email" in data:
-        if data["email"] != employee.email and Employee.query.filter_by(email=data["email"]).first():
-            return jsonify({"message": f"Employee with email {data['email']} already exists"}), 409
-        employee.email = data["email"]
+
+    if 'email' in data and data['email'] != employee.email:
+        # Ensure email is not None or empty if it's being set and is required to be non-null unique
+        # For now, assuming unique constraint handles empty strings if not nullable.
+        if data['email'] and Employee.query.filter(Employee.id != employee_id, Employee.email == data['email']).first():
+            return jsonify({"message": f"Email '{data['email']}' is already in use by another employee"}), 409
+        employee.email = data['email']
+    elif 'email' in data and data['email'] is None and employee.email is not None: # Explicitly setting email to None
+        employee.email = None
+
     if "phone_number" in data: employee.phone_number = data["phone_number"]
     if "position" in data: employee.position = data["position"]
     if "is_active" in data: employee.is_active = data["is_active"]
@@ -69,8 +83,12 @@ def update_employee(employee_id):
     except ValueError:
         return jsonify({"message": "Invalid hire_date format (YYYY-MM-DD)"}), 400
 
-    db.session.commit()
-    return jsonify(employee.to_dict()), 200
+    try:
+        db.session.commit()
+        return jsonify(employee.to_dict()), 200
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({"message": "Database error during update. Email might conflict."}), 409
 
 @employee_bp.route("/employees/<int:employee_id>", methods=["DELETE"])
 def delete_employee(employee_id):
@@ -78,7 +96,7 @@ def delete_employee(employee_id):
     # Salaries associated will be deleted due to cascade in model
     db.session.delete(employee)
     db.session.commit()
-    return jsonify({"message": "Employee deleted successfully"}), 200
+    return '', 204
 
 # --- Salary Endpoints ---
 @employee_bp.route("/employees/<int:employee_id>/salaries", methods=["POST"])
@@ -116,9 +134,13 @@ def add_salary(employee_id):
     )
     new_salary.calculate_net_amount() # Calculate net amount before saving
     
-    db.session.add(new_salary)
-    db.session.commit()
-    return jsonify(new_salary.to_dict()), 201
+    try:
+        db.session.add(new_salary)
+        db.session.commit()
+        return jsonify(new_salary.to_dict()), 201
+    except Exception as e: # Catch a broader exception if needed, or specific ones
+        db.session.rollback()
+        return jsonify({"message": "Failed to add salary record", "error": str(e)}), 500
 
 @employee_bp.route("/employees/<int:employee_id>/salaries", methods=["GET"])
 def get_employee_salaries(employee_id):
@@ -169,7 +191,11 @@ def update_salary(salary_id):
 
     if updated:
         salary.calculate_net_amount()
-        db.session.commit()
+        try:
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"message": "Failed to update salary record", "error": str(e)}), 500
         
     return jsonify(salary.to_dict()), 200
 
@@ -178,5 +204,4 @@ def delete_salary(salary_id):
     salary = Salary.query.get_or_404(salary_id)
     db.session.delete(salary)
     db.session.commit()
-    return jsonify({"message": "Salary record deleted successfully"}), 200
-
+    return '', 204

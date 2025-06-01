@@ -16,7 +16,7 @@ class InventoryItem(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships - e.g., with InvoiceItem
-    # invoice_lines = db.relationship('InvoiceItem', back_populates='inventory_item', lazy=True)
+    invoice_lines = db.relationship('InvoiceItem', back_populates='inventory_item', lazy='dynamic') # Changed to lazy='dynamic' for consistency if you expect to filter/query these
 
     def __repr__(self):
         return f"<InventoryItem {self.id}: {self.name} (SKU: {self.sku}) - Qty: {self.quantity_on_hand}>"
@@ -34,4 +34,3 @@ class InventoryItem(db.Model):
             'created_at': self.created_at.isoformat(),
             'updated_at': self.updated_at.isoformat()
         }
-

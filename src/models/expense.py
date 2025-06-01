@@ -14,7 +14,8 @@ class Expense(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
 
-    # recorder = db.relationship("User", back_populates="expense_records") # Corrected text string
+    # Relationship to User
+    recorder = db.relationship("User", back_populates="expense_records")
 
     def __repr__(self):
         return f"<Expense {self.id}: {self.description} - {self.amount}>"
@@ -31,4 +32,3 @@ class Expense(db.Model):
             "created_at": self.created_at.isoformat(),
             "user_id": self.user_id
         }
-

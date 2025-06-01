@@ -73,9 +73,12 @@ def create_invoice():
             item_description=item_data["item_description"],
             quantity=quantity,
             unit_price=unit_price,
-            line_total=line_total,
-            item_id=item_data.get("item_id")
+            line_total=line_total
         )
+        # Link to inventory item if item_id is provided
+        if item_data.get("item_id"):
+            invoice_item_obj.item_id = item_data.get("item_id")
+
         invoice_item_obj.invoice = new_invoice 
         db.session.add(invoice_item_obj) # Explicitly add item to session
 
@@ -83,6 +86,10 @@ def create_invoice():
     
     try:
         db.session.commit()
+        # TODO: Implement inventory quantity deduction here if invoice is not a draft
+        # This should be part of the same transaction or handled carefully.
+        # For each item in new_invoice.items:
+        #   If item.item_id exists, find Product by item.item_id and decrement quantity_on_hand
     except Exception as e:
         db.session.rollback()
         return jsonify({"message": "Failed to create invoice", "error": str(e)}), 500
@@ -144,12 +151,16 @@ def update_invoice(invoice_id):
                 item_description=item_data["item_description"],
                 quantity=quantity,
                 unit_price=unit_price,
-                line_total=line_total,
-                item_id=item_data.get("item_id")
+                line_total=line_total
             )
+            # Link to inventory item if item_id is provided
+            if item_data.get("item_id"):
+                new_invoice_item.item_id = item_data.get("item_id")
+
             db.session.add(new_invoice_item) # Explicitly add item to session
         invoice.total_amount = new_total_amount
     else:
+        # If items are not part of the payload, recalculate total from existing items
         invoice.calculate_total()
 
     try:
@@ -165,5 +176,6 @@ def delete_invoice(invoice_id):
     invoice = Invoice.query.get_or_404(invoice_id)
     db.session.delete(invoice)
     db.session.commit()
-    return jsonify({"message": "Invoice deleted successfully"}), 200
-
+    # TODO: Consider if inventory needs to be restocked if invoice was not a draft
+    # (e.g., if items were deducted from inventory previously)
+    return '', 204

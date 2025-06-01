@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 from src.extensions import db
 from src.models.income import Income
 from datetime import datetime
+from sqlalchemy.exc import IntegrityError
 
 # Placeholder for user authentication - in a real app, you'd get user_id from session/token
 # For now, we might require user_id in the request or use a default
@@ -31,9 +32,16 @@ def add_income():
         notes=data.get("notes"),
         user_id=data.get("user_id", MOCK_USER_ID) # Use provided user_id or mock
     )
-    db.session.add(new_income)
-    db.session.commit()
-    return jsonify(new_income.to_dict()), 201
+    try:
+        db.session.add(new_income)
+        db.session.commit()
+        return jsonify(new_income.to_dict()), 201
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({"message": "Database error: Could not add income record."}), 500
+    except Exception as e: # Catch other potential errors
+        db.session.rollback()
+        return jsonify({"message": "An unexpected error occurred.", "error": str(e)}), 500
 
 @income_bp.route("/income", methods=["GET"])
 def get_all_income():
@@ -74,8 +82,15 @@ def update_income(income_id):
     if data.get("notes"):
         income.notes = data["notes"]
     
-    db.session.commit()
-    return jsonify(income.to_dict()), 200
+    try:
+        db.session.commit()
+        return jsonify(income.to_dict()), 200
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({"message": "Database error: Could not update income record."}), 500
+    except Exception as e: # Catch other potential errors
+        db.session.rollback()
+        return jsonify({"message": "An unexpected error occurred.", "error": str(e)}), 500
 
 @income_bp.route("/income/<int:income_id>", methods=["DELETE"])
 def delete_income(income_id):
@@ -83,5 +98,4 @@ def delete_income(income_id):
     # Add check for user_id if necessary
     db.session.delete(income)
     db.session.commit()
-    return jsonify({"message": "Income record deleted"}), 200
-
+    return '', 204

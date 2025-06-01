@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 from src.extensions import db
 from src.models.inventory_item import InventoryItem
 
+
 inventory_bp = Blueprint("inventory_bp", __name__)
 
 # Add sample product if inventory is empty (for demo purposes as per knowledge module)
@@ -16,6 +17,8 @@ def add_sample_products_if_empty():
         db.session.add_all(sample_products)
         db.session.commit()
         print("Added sample products to inventory.")
+# Recommendation: Call add_sample_products_if_empty() during app initialization
+# or via a CLI command, not directly within a GET route.
 
 @inventory_bp.route("/inventory", methods=["POST"])
 def add_inventory_item():
@@ -50,15 +53,22 @@ def add_inventory_item():
         quantity_on_hand=quantity_on_hand,
         unit_of_measure=data.get("unit_of_measure")
     )
-    db.session.add(new_item)
-    db.session.commit()
-    return jsonify(new_item.to_dict()), 201
+    try:
+        db.session.add(new_item)
+        db.session.commit()
+        return jsonify(new_item.to_dict()), 201
+    except Exception as e: # Catch potential db errors
+        db.session.rollback()
+        return jsonify({"message": "Failed to add inventory item", "error": str(e)}), 500
 
 @inventory_bp.route("/inventory", methods=["GET"])
 def get_all_inventory_items():
-    add_sample_products_if_empty() # Ensure sample products are there for GET requests if empty
+    # Consider removing add_sample_products_if_empty() from here.
+    # It's better to handle sample data during app setup or via a separate script.
+    # If you keep it for demo purposes, be aware of its side effects on a GET request.
     items = InventoryItem.query.all()
     return jsonify([item.to_dict() for item in items]), 200
+
 
 @inventory_bp.route("/inventory/<int:item_id>", methods=["GET"])
 def get_inventory_item(item_id):
@@ -113,13 +123,20 @@ def update_inventory_item(item_id):
     if data.get("unit_of_measure"):
         item.unit_of_measure = data["unit_of_measure"]
     
-    db.session.commit()
-    return jsonify(item.to_dict()), 200
+    try:
+        db.session.commit()
+        return jsonify(item.to_dict()), 200
+    except Exception as e: # Catch potential db errors
+        db.session.rollback()
+        return jsonify({"message": "Failed to update inventory item", "error": str(e)}), 500
 
 @inventory_bp.route("/inventory/<int:item_id>", methods=["DELETE"])
 def delete_inventory_item(item_id):
     item = InventoryItem.query.get_or_404(item_id)
-    db.session.delete(item)
-    db.session.commit()
-    return jsonify({"message": "Inventory item deleted"}), 200
-
+    try:
+        db.session.delete(item)
+        db.session.commit()
+        return '', 204
+    except Exception as e: # Catch potential db errors
+        db.session.rollback()
+        return jsonify({"message": "Failed to delete inventory item", "error": str(e)}), 500

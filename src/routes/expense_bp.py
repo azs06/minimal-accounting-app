@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 from src.extensions import db
 from src.models.expense import Expense # Changed from Income to Expense
 from datetime import datetime
+from sqlalchemy.exc import IntegrityError
 
 # Placeholder for user authentication - in a real app, you'd get user_id from session/token
 # For now, we might require user_id in the request or use a default
@@ -32,9 +33,17 @@ def add_expense(): # Renamed from add_income
         notes=data.get("notes"),
         user_id=data.get("user_id", MOCK_USER_ID)
     )
-    db.session.add(new_expense)
-    db.session.commit()
-    return jsonify(new_expense.to_dict()), 201
+    try:
+        db.session.add(new_expense)
+        db.session.commit()
+        return jsonify(new_expense.to_dict()), 201
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({"message": "Database error: Could not add expense record."}), 500
+    except Exception as e: # Catch other potential errors
+        db.session.rollback()
+        return jsonify({"message": "An unexpected error occurred.", "error": str(e)}), 500
+
 
 @expense_bp.route("/expenses", methods=["GET"])
 def get_all_expenses(): # Renamed from get_all_income
@@ -73,13 +82,19 @@ def update_expense(expense_id): # Renamed from update_income
     if data.get("notes"):
         expense.notes = data["notes"]
     
-    db.session.commit()
-    return jsonify(expense.to_dict()), 200
+    try:
+        db.session.commit()
+        return jsonify(expense.to_dict()), 200
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({"message": "Database error: Could not update expense record."}), 500
+    except Exception as e: # Catch other potential errors
+        db.session.rollback()
+        return jsonify({"message": "An unexpected error occurred.", "error": str(e)}), 500
 
 @expense_bp.route("/expenses/<int:expense_id>", methods=["DELETE"])
 def delete_expense(expense_id): # Renamed from delete_income
     expense = Expense.query.get_or_404(expense_id)
     db.session.delete(expense)
     db.session.commit()
-    return jsonify({"message": "Expense record deleted"}), 200
-
+    return '', 204

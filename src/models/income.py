@@ -14,7 +14,7 @@ class Income(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
 
     # Relationship to User (optional, if you need to access user from income object directly)
-    # recorder = db.relationship("User", back_populates="income_records") # Corrected text string
+    recorder = db.relationship("User", back_populates="income_records")
 
     def __repr__(self):
         return f"<Income {self.id}: {self.description} - {self.amount}>"
@@ -30,4 +30,3 @@ class Income(db.Model):
             "created_at": self.created_at.isoformat(),
             "user_id": self.user_id
         }
-

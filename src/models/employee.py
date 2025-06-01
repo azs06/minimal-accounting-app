@@ -13,9 +13,14 @@ class Employee(db.Model):
     hire_date = db.Column(db.Date)
     is_active = db.Column(db.Boolean, default=True, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Foreign key to User model for one-to-one relationship
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), unique=True, nullable=True)
 
     # Relationship to Salaries
     salaries = db.relationship("Salary", backref="employee", lazy="dynamic", cascade="all, delete-orphan")
+    # Relationship to User
+    user = db.relationship("User", back_populates="employee_profile", uselist=False)
 
     def __repr__(self):
         return f"<Employee {self.id}: {self.first_name} {self.last_name} - {self.position}>"
@@ -30,7 +35,8 @@ class Employee(db.Model):
             "position": self.position,
             "hire_date": self.hire_date.isoformat() if self.hire_date else None,
             "is_active": self.is_active,
-            "created_at": self.created_at.isoformat()
+            "created_at": self.created_at.isoformat(),
+            "user_id": self.user_id
         }
 
 class Salary(db.Model):
@@ -72,4 +78,3 @@ class Salary(db.Model):
             "created_at": self.created_at.isoformat(),
             "recorded_by_user_id": self.recorded_by_user_id
         }
-

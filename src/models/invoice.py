@@ -18,7 +18,7 @@ class Invoice(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
 
     # Relationship to User
-    # creator = db.relationship("User", back_populates="invoices_created")
+    creator = db.relationship("User", back_populates="invoices_created")
     # Relationship to InvoiceItem
     items = db.relationship("InvoiceItem", backref="invoice", lazy="dynamic", cascade="all, delete-orphan")
 
@@ -58,7 +58,7 @@ class InvoiceItem(db.Model):
     line_total = db.Column(db.Float, nullable=False)
 
     # Relationship to InventoryItem (optional, if you need to access inventory_item from invoice_item directly)
-    # inventory_item = db.relationship("InventoryItem", back_populates="invoice_lines")
+    inventory_item = db.relationship("InventoryItem", back_populates="invoice_lines")
 
     def __repr__(self):
         return f"<InvoiceItem {self.id} for Invoice {self.invoice_id} - {self.item_description} Qty: {self.quantity}>"
@@ -77,4 +77,3 @@ class InvoiceItem(db.Model):
             "unit_price": self.unit_price,
             "line_total": self.line_total
         }
-

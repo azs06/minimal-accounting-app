@@ -1,0 +1,350 @@
+###
+# API Test Requests
+# Base URL: http://127.0.0.1:8080
+###
+
+# =========================================
+# User Management (from main.py and user_bp.py)
+# =========================================
+
+### Register a new user (from main.py)
+POST http://127.0.0.1:8080/api/register
+Content-Type: application/json
+
+{
+  "username": "testuser1",
+  "password": "password123",
+  "email": "testuser1@example.com",
+  "role": "user"
+}
+
+### Register an admin user (from main.py)
+POST http://127.0.0.1:8080/api/register
+Content-Type: application/json
+
+{
+  "username": "adminuser",
+  "password": "adminpassword",
+  "email": "admin@example.com",
+  "role": "admin"
+}
+
+### Login user (from main.py)
+POST http://127.0.0.1:8080/api/login
+Content-Type: application/json
+
+{
+  "username": "testuser1",
+  "password": "password123"
+}
+
+### Create a new user (using user_bp.py, assuming MOCK_USER_ID or future auth)
+# Note: The /api/register route is likely preferred for initial user creation.
+# This /api/users POST might be for admin-driven creation.
+POST http://127.0.0.1:8080/api/users
+Content-Type: application/json
+
+{
+  "username": "anotheruser",
+  "email": "another@example.com",
+  "password": "securepassword",
+  "role": "editor"
+}
+@createdUserId = {{create_user.response.body.id}}
+
+### Get all users
+GET http://127.0.0.1:8080/api/users
+
+### Get a specific user (replace {{createdUserId}} or use a known ID)
+GET http://127.0.0.1:8080/api/users/{{createdUserId}}
+
+### Update a user (replace {{createdUserId}} or use a known ID)
+PUT http://127.0.0.1:8080/api/users/{{createdUserId}}
+Content-Type: application/json
+
+{
+  "username": "anotheruser_updated",
+  "email": "another_updated@example.com",
+  "role": "user"
+}
+
+### Delete a user (replace {{createdUserId}} or use a known ID)
+# DELETE http://127.0.0.1:8080/api/users/{{createdUserId}}
+
+
+# =========================================
+# Employee Management
+# =========================================
+
+### Add a new employee
+POST http://127.0.0.1:8080/api/employees
+Content-Type: application/json
+
+{
+  "first_name": "John",
+  "last_name": "Doe",
+  "email": "john.doe@example.com",
+  "phone_number": "555-0101",
+  "position": "Software Engineer",
+  "hire_date": "2023-01-15",
+  "is_active": true
+}
+@employeeId = {{add_employee.response.body.id}}
+
+### Get all employees
+GET http://127.0.0.1:8080/api/employees
+
+### Get a specific employee
+GET http://127.0.0.1:8080/api/employees/{{employeeId}}
+
+### Update an employee
+PUT http://127.0.0.1:8080/api/employees/{{employeeId}}
+Content-Type: application/json
+
+{
+  "position": "Senior Software Engineer",
+  "phone_number": "555-0102"
+}
+
+### Add salary for an employee
+POST http://127.0.0.1:8080/api/employees/{{employeeId}}/salaries
+Content-Type: application/json
+
+{
+  "payment_date": "2023-02-28",
+  "gross_amount": 5000.00,
+  "deductions": 500.00,
+  "payment_period_start": "2023-02-01",
+  "payment_period_end": "2023-02-28",
+  "notes": "February Salary",
+  "recorded_by_user_id": 1 # MOCK_USER_ID
+}
+@salaryId = {{add_salary_for_employee.response.body.id}}
+
+### Get all salaries for an employee
+GET http://127.0.0.1:8080/api/employees/{{employeeId}}/salaries
+
+### Get a specific salary record
+GET http://127.0.0.1:8080/api/salaries/{{salaryId}}
+
+### Update a salary record
+PUT http://127.0.0.1:8080/api/salaries/{{salaryId}}
+Content-Type: application/json
+
+{
+  "notes": "February Salary (Corrected)"
+}
+
+### Delete a salary record
+# DELETE http://127.0.0.1:8080/api/salaries/{{salaryId}}
+
+### Delete an employee
+# DELETE http://127.0.0.1:8080/api/employees/{{employeeId}}
+
+
+# =========================================
+# Inventory Management
+# =========================================
+
+### Add a new inventory item
+POST http://127.0.0.1:8080/api/inventory
+Content-Type: application/json
+
+{
+  "name": "Super Widget",
+  "description": "A very super widget for all your widgeting needs.",
+  "sku": "WDGT-SPR-001",
+  "purchase_price": 10.50,
+  "sale_price": 25.99,
+  "quantity_on_hand": 100,
+  "unit_of_measure": "pcs"
+}
+@inventoryItemId = {{add_inventory_item.response.body.id}}
+
+### Get all inventory items
+GET http://127.0.0.1:8080/api/inventory
+
+### Get a specific inventory item
+GET http://127.0.0.1:8080/api/inventory/{{inventoryItemId}}
+
+### Update an inventory item
+PUT http://127.0.0.1:8080/api/inventory/{{inventoryItemId}}
+Content-Type: application/json
+
+{
+  "sale_price": 27.50,
+  "quantity_on_hand": 95
+}
+
+### Delete an inventory item
+# DELETE http://127.0.0.1:8080/api/inventory/{{inventoryItemId}}
+
+
+# =========================================
+# Income Management
+# =========================================
+
+### Add an income record
+POST http://127.0.0.1:8080/api/income
+Content-Type: application/json
+
+{
+  "description": "Consulting services for Project X",
+  "amount": 1200.00,
+  "date_received": "2023-03-10",
+  "category": "Consulting",
+  "notes": "Invoice #INV-2023-001",
+  "user_id": 1 # MOCK_USER_ID
+}
+@incomeId = {{add_income_record.response.body.id}}
+
+### Get all income records
+GET http://127.0.0.1:8080/api/income
+
+### Get a specific income record
+GET http://127.0.0.1:8080/api/income/{{incomeId}}
+
+### Update an income record
+PUT http://127.0.0.1:8080/api/income/{{incomeId}}
+Content-Type: application/json
+
+{
+  "amount": 1250.00,
+  "notes": "Invoice #INV-2023-001 (Revised)"
+}
+
+### Delete an income record
+# DELETE http://127.0.0.1:8080/api/income/{{incomeId}}
+
+
+# =========================================
+# Expense Management
+# =========================================
+
+### Add an expense record
+POST http://127.0.0.1:8080/api/expenses
+Content-Type: application/json
+
+{
+  "description": "Office supplies purchase",
+  "amount": 75.50,
+  "date_incurred": "2023-03-05",
+  "category": "Office Supplies",
+  "vendor": "Staples",
+  "notes": "Receipt #12345",
+  "user_id": 1 # MOCK_USER_ID
+}
+@expenseId = {{add_expense_record.response.body.id}}
+
+### Get all expense records
+GET http://127.0.0.1:8080/api/expenses
+
+### Get a specific expense record
+GET http://127.0.0.1:8080/api/expenses/{{expenseId}}
+
+### Update an expense record
+PUT http://127.0.0.1:8080/api/expenses/{{expenseId}}
+Content-Type: application/json
+
+{
+  "amount": 80.00,
+  "notes": "Receipt #12345 (Added missing item)"
+}
+
+### Delete an expense record
+# DELETE http://127.0.0.1:8080/api/expenses/{{expenseId}}
+
+
+# =========================================
+# Invoice Management
+# =========================================
+
+### Create an invoice
+POST http://127.0.0.1:8080/api/invoices
+Content-Type: application/json
+
+{
+  "customer_name": "ACME Corp",
+  "customer_email": "billing@acme.com",
+  "customer_address": "123 Innovation Drive, Tech City",
+  "issue_date": "2023-03-15",
+  "due_date": "2023-04-14",
+  "status": "Draft",
+  "notes": "Project Alpha deliverables",
+  "user_id": 1, # MOCK_USER_ID
+  "items": [
+    {
+      "item_id": {{inventoryItemId}}, # Assuming inventoryItemId is set from previous inventory creation
+      "item_description": "Super Widget - Project Alpha", # Can override or be fetched
+      "quantity": 5,
+      "unit_price": 25.99
+    },
+    {
+      "item_description": "Custom Development Hours",
+      "quantity": 10,
+      "unit_price": 75.00
+    }
+  ]
+}
+@invoiceId = {{create_invoice.response.body.id}}
+
+### Get all invoices
+GET http://127.0.0.1:8080/api/invoices
+
+### Get a specific invoice
+GET http://127.0.0.1:8080/api/invoices/{{invoiceId}}
+
+### Update an invoice (e.g., change status and add a note)
+PUT http://127.0.0.1:8080/api/invoices/{{invoiceId}}
+Content-Type: application/json
+
+{
+  "status": "Sent",
+  "notes": "Project Alpha deliverables. Sent to client."
+}
+
+### Update an invoice (e.g., change items - this replaces all items)
+PUT http://127.0.0.1:8080/api/invoices/{{invoiceId}}
+Content-Type: application/json
+
+{
+  "customer_name": "ACME Corp International",
+  "status": "Sent",
+  "items": [
+    {
+      "item_id": {{inventoryItemId}},
+      "item_description": "Super Widget - Project Alpha (Revised)",
+      "quantity": 6,
+      "unit_price": 25.99
+    },
+    {
+      "item_description": "Extended Support Hours",
+      "quantity": 2,
+      "unit_price": 100.00
+    }
+  ]
+}
+
+### Delete an invoice
+# DELETE http://127.0.0.1:8080/api/invoices/{{invoiceId}}
+
+
+# =========================================
+# Reports (from reports_bp.py - assuming it's set up)
+# =========================================
+
+### Get Profit and Loss Report
+GET http://127.0.0.1:8080/api/reports/profit_and_loss?start_date=2023-01-01&end_date=2023-03-31
+
+### Get Sales Report
+GET http://127.0.0.1:8080/api/reports/sales_report?start_date=2023-01-01&end_date=2023-03-31
+
+### Get Expense Report
+GET http://127.0.0.1:8080/api/reports/expense_report?start_date=2023-01-01&end_date=2023-03-31
+
+### Get Inventory Summary Report
+GET http://127.0.0.1:8080/api/reports/inventory_summary
+
+### Get Employee Payroll Summary
+GET http://127.0.0.1:8080/api/reports/employee_payroll?start_date=2023-01-01&end_date=2023-03-31
+
