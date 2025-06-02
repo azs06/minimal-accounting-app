@@ -5,23 +5,23 @@ from werkzeug.security import check_password_hash # generate_password_hash is in
 from sqlalchemy.exc import IntegrityError
 from flask_jwt_extended import jwt_required, get_jwt_identity # For protection
 from datetime import datetime # For hire_date parsing
+from src.decorators.auth_decorators import system_admin_required # Import the decorator
 
 user_bp = Blueprint('user', __name__)
 
 @user_bp.route('/users', methods=['GET'])
-@jwt_required() # Protect this route, typically admin only
+@system_admin_required # Use the new decorator
 def get_users():
-    # TODO: Add role-based authorization (e.g., only admins can see all users)
     users = User.query.all()
     return jsonify([user.to_dict() for user in users])
 
 @user_bp.route('/users', methods=['POST'])
-@jwt_required() # Protect this route, typically admin only
+@system_admin_required # Use the new decorator
 def create_user():
     data = request.get_json()
     if not data:
         return jsonify({"message": "Request body must be JSON"}), 400
-
+    
     username = data.get('username')
     email = data.get('email')
     password = data.get('password')
@@ -29,7 +29,7 @@ def create_user():
 
     if not username or not email or not password:
         return jsonify({"message": "Missing required fields (username, email, password)"}), 400
-
+    
     if User.query.filter_by(username=username).first():
         return jsonify({"message": f"User with username '{username}' already exists"}), 409
     if User.query.filter_by(email=email).first():
@@ -86,7 +86,14 @@ def create_user():
 @user_bp.route('/users/<int:user_id>', methods=['GET'])
 @jwt_required()
 def get_user(user_id):
-    # TODO: Add role-based authorization (user can get self, admin can get any)
+    current_acting_user_id_str = get_jwt_identity()
+    current_acting_user_id = int(current_acting_user_id_str)
+    requesting_user = User.query.get(current_acting_user_id)
+
+    # Allow user to get their own info, or admin to get any user's info
+    if current_acting_user_id != user_id and (not requesting_user or requesting_user.role != 'system_admin'):
+        return jsonify({"message": "Unauthorized"}), 403
+        
     user = User.query.get_or_404(user_id)
     return jsonify(user.to_dict())
 
@@ -94,10 +101,12 @@ def get_user(user_id):
 @jwt_required()
 def update_user(user_id):
     # TODO: Add role-based authorization (user can update self, admin can update any)
-    # current_acting_user_id = int(get_jwt_identity())
-    # if current_acting_user_id != user_id and not is_admin(current_acting_user_id):
-    #     return jsonify({"message": "Unauthorized"}), 403
+    current_acting_user_id_str = get_jwt_identity()
+    current_acting_user_id = int(current_acting_user_id_str)
+    requesting_user = User.query.get(current_acting_user_id)
 
+    if current_acting_user_id != user_id and (not requesting_user or requesting_user.role != 'system_admin'):
+        return jsonify({"message": "Unauthorized"}), 403
     user = User.query.get_or_404(user_id)
     data = request.get_json()
 
@@ -121,8 +130,11 @@ def update_user(user_id):
              return jsonify({"message": "New password cannot be empty"}), 400
         user.set_password(data['password'])
 
-    if 'role' in data: # Allow role updates if necessary, potentially with authorization checks
-        user.role = data['role']
+    if 'role' in data:
+        if not requesting_user or requesting_user.role != 'system_admin':
+            return jsonify({"message": "Unauthorized: Only system administrators can change user roles"}), 403
+        user.role = data['role'] # Only admin can change role
+
 
     try:
         db.session.commit()
@@ -132,12 +144,8 @@ def update_user(user_id):
         return jsonify({"message": "Database error during update. Username or email might conflict."}), 409
 
 @user_bp.route('/users/<int:user_id>', methods=['DELETE'])
-@jwt_required() # Protect this route, typically admin only
+@system_admin_required # Use the new decorator
 def delete_user(user_id):
-    # TODO: Add role-based authorization (e.g., only admins can delete users)
-    # current_acting_user_id = int(get_jwt_identity())
-    # if not is_admin(current_acting_user_id):
-    #     return jsonify({"message": "Unauthorized"}), 403
     user = User.query.get_or_404(user_id)
     db.session.delete(user)
     db.session.commit()
@@ -147,7 +155,12 @@ def delete_user(user_id):
 @jwt_required()
 def update_my_password():
     """Allows the currently authenticated user to update their own password."""
-    current_user_id = int(get_jwt_identity())
+    current_user_id_str = get_jwt_identity()
+    try:
+        current_user_id = int(current_user_id_str)
+    except ValueError:
+        return jsonify(message="Invalid user identity in token"), 401
+
     user = User.query.get_or_404(current_user_id)
 
     data = request.get_json()
