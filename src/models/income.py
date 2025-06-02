@@ -12,9 +12,12 @@ class Income(db.Model):
     notes = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    company_id = db.Column(db.Integer, db.ForeignKey('companies.id'), nullable=False)
 
-    # Relationship to User (optional, if you need to access user from income object directly)
+    # --- Relationships ---
+    # User who recorded this income
     recorder = db.relationship("User", back_populates="income_records")
+    company = db.relationship("Company", back_populates="income_records")
 
     def __repr__(self):
         return f"<Income {self.id}: {self.description} - {self.amount}>"
@@ -28,5 +31,6 @@ class Income(db.Model):
             "category": self.category,
             "notes": self.notes,
             "created_at": self.created_at.isoformat(),
-            "user_id": self.user_id
+            "user_id": self.user_id,
+            "company_id": self.company_id
         }

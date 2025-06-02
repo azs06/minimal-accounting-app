@@ -3,9 +3,13 @@ from datetime import datetime, date
 
 class Invoice(db.Model):
     __tablename__ = "invoices"
+    # To ensure invoice_number is unique per company
+    __table_args__ = (
+        db.UniqueConstraint('company_id', 'invoice_number', name='uq_invoice_company_invoice_number'),
+    )
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    invoice_number = db.Column(db.String(100), unique=True, nullable=False)
+    invoice_number = db.Column(db.String(100), nullable=False) # Unique constraint handled by __table_args__
     customer_name = db.Column(db.String(200), nullable=False)
     customer_email = db.Column(db.String(120))
     customer_address = db.Column(db.Text)
@@ -15,10 +19,13 @@ class Invoice(db.Model):
     status = db.Column(db.String(50), nullable=False, default="Draft")  # e.g., Draft, Sent, Paid, Overdue, Cancelled
     notes = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False) # User who created the invoice
+    company_id = db.Column(db.Integer, db.ForeignKey('companies.id'), nullable=False)
 
-    # Relationship to User
+    # --- Relationships ---
+    # User who created this invoice
     creator = db.relationship("User", back_populates="invoices_created")
+    company = db.relationship("Company", back_populates="invoices")
     # Relationship to InvoiceItem
     items = db.relationship("InvoiceItem", backref="invoice", lazy="dynamic", cascade="all, delete-orphan")
 
@@ -43,6 +50,7 @@ class Invoice(db.Model):
             "notes": self.notes,
             "created_at": self.created_at.isoformat(),
             "user_id": self.user_id,
+            "company_id": self.company_id,
             "items": [item.to_dict() for item in self.items.all()] # Serialize items
         }
 
@@ -56,7 +64,8 @@ class InvoiceItem(db.Model):
     quantity = db.Column(db.Integer, nullable=False)
     unit_price = db.Column(db.Float, nullable=False)
     line_total = db.Column(db.Float, nullable=False)
-
+    
+    # --- Relationships ---
     # Relationship to InventoryItem (optional, if you need to access inventory_item from invoice_item directly)
     inventory_item = db.relationship("InventoryItem", back_populates="invoice_lines")
 

@@ -13,9 +13,12 @@ class Expense(db.Model):
     notes = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    company_id = db.Column(db.Integer, db.ForeignKey('companies.id'), nullable=False)
 
-    # Relationship to User
+    # --- Relationships ---
+    # User who recorded this expense
     recorder = db.relationship("User", back_populates="expense_records")
+    company = db.relationship("Company", back_populates="expense_records")
 
     def __repr__(self):
         return f"<Expense {self.id}: {self.description} - {self.amount}>"
@@ -30,5 +33,6 @@ class Expense(db.Model):
             "vendor": self.vendor,
             "notes": self.notes,
             "created_at": self.created_at.isoformat(),
-            "user_id": self.user_id
+            "user_id": self.user_id,
+            "company_id": self.company_id
         }

@@ -13,12 +13,18 @@ class Employee(db.Model):
     hire_date = db.Column(db.Date)
     is_active = db.Column(db.Boolean, default=True, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
+
+    # Foreign key to the company this employee belongs to
+    company_id = db.Column(db.Integer, db.ForeignKey('companies.id'), nullable=False)
+
     # Foreign key to User model for one-to-one relationship
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), unique=True, nullable=True)
 
+    # --- Relationships ---
     # Relationship to Salaries
     salaries = db.relationship("Salary", backref="employee", lazy="dynamic", cascade="all, delete-orphan")
+    # Relationship to Company
+    company = db.relationship("Company", back_populates="employees")
     # Relationship to User
     user = db.relationship("User", back_populates="employee_profile", uselist=False)
 
@@ -36,7 +42,8 @@ class Employee(db.Model):
             "hire_date": self.hire_date.isoformat() if self.hire_date else None,
             "is_active": self.is_active,
             "created_at": self.created_at.isoformat(),
-            "user_id": self.user_id
+            "user_id": self.user_id,
+            "company_id": self.company_id
         }
 
 class Salary(db.Model):
@@ -53,9 +60,12 @@ class Salary(db.Model):
     notes = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     recorded_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    # company_id = db.Column(db.Integer, db.ForeignKey('companies.id'), nullable=False) # Salaries are tied to an employee who is tied to a company
 
-    # Relationship to User who recorded it
-    # recorder = db.relationship("User", back_populates="salaries_recorded")
+    # --- Relationships ---
+    # User who recorded this salary payment
+    recorder = db.relationship("User", back_populates="salaries_recorded", foreign_keys=[recorded_by_user_id])
+    # company = db.relationship("Company", back_populates="salaries_paid") # If direct link from Company to Salary is needed
 
     def __repr__(self):
         return f"<Salary {self.id} for Employee {self.employee_id} - Net: {self.net_amount} on {self.payment_date}>"
@@ -76,5 +86,6 @@ class Salary(db.Model):
             "payment_period_end": self.payment_period_end.isoformat() if self.payment_period_end else None,
             "notes": self.notes,
             "created_at": self.created_at.isoformat(),
-            "recorded_by_user_id": self.recorded_by_user_id
+            "recorded_by_user_id": self.recorded_by_user_id,
+            # "company_id": self.company_id # If added
         }
