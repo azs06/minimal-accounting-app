@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
 from src.extensions import db
+from flask_jwt_extended import jwt_required #, get_jwt_identity # Not strictly needed if not filtering by user
 from src.models.inventory_item import InventoryItem
 
 
@@ -21,6 +22,7 @@ def add_sample_products_if_empty():
 # or via a CLI command, not directly within a GET route.
 
 @inventory_bp.route("/inventory", methods=["POST"])
+@jwt_required()
 def add_inventory_item():
     data = request.get_json()
     if not data or not data.get("name") or data.get("sale_price") is None:
@@ -62,6 +64,7 @@ def add_inventory_item():
         return jsonify({"message": "Failed to add inventory item", "error": str(e)}), 500
 
 @inventory_bp.route("/inventory", methods=["GET"])
+@jwt_required()
 def get_all_inventory_items():
     # Consider removing add_sample_products_if_empty() from here.
     # It's better to handle sample data during app setup or via a separate script.
@@ -71,11 +74,13 @@ def get_all_inventory_items():
 
 
 @inventory_bp.route("/inventory/<int:item_id>", methods=["GET"])
+@jwt_required()
 def get_inventory_item(item_id):
     item = InventoryItem.query.get_or_404(item_id)
     return jsonify(item.to_dict()), 200
 
 @inventory_bp.route("/inventory/<int:item_id>", methods=["PUT"])
+@jwt_required()
 def update_inventory_item(item_id):
     item = InventoryItem.query.get_or_404(item_id)
     data = request.get_json()
@@ -131,6 +136,7 @@ def update_inventory_item(item_id):
         return jsonify({"message": "Failed to update inventory item", "error": str(e)}), 500
 
 @inventory_bp.route("/inventory/<int:item_id>", methods=["DELETE"])
+@jwt_required()
 def delete_inventory_item(item_id):
     item = InventoryItem.query.get_or_404(item_id)
     try:

@@ -1,16 +1,16 @@
 from flask import Blueprint, request, jsonify
 from src.extensions import db
 from src.models.employee import Employee, Salary
+from src.models.user import User # Import User model
 from datetime import datetime, date
 from sqlalchemy.exc import IntegrityError
-
-# Placeholder for user authentication
-MOCK_USER_ID = 1
+from flask_jwt_extended import jwt_required, get_jwt_identity
 
 employee_bp = Blueprint("employee_bp", __name__)
 
 # --- Employee Endpoints ---
 @employee_bp.route("/employees", methods=["POST"])
+@jwt_required()
 def add_employee():
     data = request.get_json()
     if not data or not data.get("first_name") or not data.get("last_name"):
@@ -44,16 +44,19 @@ def add_employee():
 
 
 @employee_bp.route("/employees", methods=["GET"])
+@jwt_required()
 def get_all_employees():
     employees = Employee.query.order_by(Employee.last_name, Employee.first_name).all()
     return jsonify([employee.to_dict() for employee in employees]), 200
 
 @employee_bp.route("/employees/<int:employee_id>", methods=["GET"])
+@jwt_required()
 def get_employee(employee_id):
     employee = Employee.query.get_or_404(employee_id)
     return jsonify(employee.to_dict()), 200
 
 @employee_bp.route("/employees/<int:employee_id>", methods=["PUT"])
+@jwt_required()
 def update_employee(employee_id):
     employee = Employee.query.get_or_404(employee_id)
     data = request.get_json()
@@ -91,6 +94,7 @@ def update_employee(employee_id):
         return jsonify({"message": "Database error during update. Email might conflict."}), 409
 
 @employee_bp.route("/employees/<int:employee_id>", methods=["DELETE"])
+@jwt_required()
 def delete_employee(employee_id):
     employee = Employee.query.get_or_404(employee_id)
     # Salaries associated will be deleted due to cascade in model
@@ -98,8 +102,47 @@ def delete_employee(employee_id):
     db.session.commit()
     return '', 204
 
+# --- Endpoint to convert Employee to User ---
+@employee_bp.route("/employees/<int:employee_id>/create-user", methods=["POST"])
+@jwt_required() # Typically an admin action
+def create_user_for_employee(employee_id):
+    # TODO: Add role-based authorization (e.g., only admins can do this)
+    employee = Employee.query.get_or_404(employee_id)
+
+    if employee.user_id:
+        return jsonify({"message": f"Employee {employee_id} already has an associated user account (User ID: {employee.user_id})."}), 409
+
+    data = request.get_json()
+    if not data:
+        return jsonify({"message": "Request body must be JSON"}), 400
+
+    username = data.get('username')
+    password = data.get('password')
+    # Use employee's email as default if not provided, but require it if employee has no email
+    email = data.get('email', employee.email) 
+    role = data.get('role', 'user')
+
+    if not username or not password or not email:
+        return jsonify({"message": "Missing required fields (username, password, email)"}), 400
+
+    if User.query.filter_by(username=username).first():
+        return jsonify({"message": f"User with username '{username}' already exists"}), 409
+    if User.query.filter_by(email=email).first():
+        return jsonify({"message": f"User with email '{email}' already exists"}), 409
+
+    new_user = User(username=username, email=email, role=role)
+    new_user.set_password(password)
+    
+    employee.user_id = new_user.id # Tentatively link, will be committed with user
+    db.session.add(new_user)
+    # employee is already in session, its user_id field will be updated on commit
+
+    db.session.commit()
+    return jsonify({"message": "User account created and linked to employee successfully.", "user": new_user.to_dict()}), 201
+
 # --- Salary Endpoints ---
 @employee_bp.route("/employees/<int:employee_id>/salaries", methods=["POST"])
+@jwt_required()
 def add_salary(employee_id):
     employee = Employee.query.get_or_404(employee_id)
     data = request.get_json()
@@ -122,6 +165,7 @@ def add_salary(employee_id):
     except ValueError:
         return jsonify({"message": "Invalid data format for amount or dates (YYYY-MM-DD)"}), 400
 
+    current_user_id = int(get_jwt_identity())
     new_salary = Salary(
         employee_id=employee.id,
         payment_date=payment_date,
@@ -130,7 +174,7 @@ def add_salary(employee_id):
         payment_period_start=payment_period_start,
         payment_period_end=payment_period_end,
         notes=data.get("notes"),
-        recorded_by_user_id=data.get("recorded_by_user_id", MOCK_USER_ID)
+        recorded_by_user_id=current_user_id
     )
     new_salary.calculate_net_amount() # Calculate net amount before saving
     
@@ -143,17 +187,20 @@ def add_salary(employee_id):
         return jsonify({"message": "Failed to add salary record", "error": str(e)}), 500
 
 @employee_bp.route("/employees/<int:employee_id>/salaries", methods=["GET"])
+@jwt_required()
 def get_employee_salaries(employee_id):
     Employee.query.get_or_404(employee_id) # Ensure employee exists
     salaries = Salary.query.filter_by(employee_id=employee_id).order_by(Salary.payment_date.desc()).all()
     return jsonify([salary.to_dict() for salary in salaries]), 200
 
 @employee_bp.route("/salaries/<int:salary_id>", methods=["GET"])
+@jwt_required()
 def get_salary(salary_id):
     salary = Salary.query.get_or_404(salary_id)
     return jsonify(salary.to_dict()), 200
 
 @employee_bp.route("/salaries/<int:salary_id>", methods=["PUT"])
+@jwt_required()
 def update_salary(salary_id):
     salary = Salary.query.get_or_404(salary_id)
     data = request.get_json()
@@ -200,6 +247,7 @@ def update_salary(salary_id):
     return jsonify(salary.to_dict()), 200
 
 @employee_bp.route("/salaries/<int:salary_id>", methods=["DELETE"])
+@jwt_required()
 def delete_salary(salary_id):
     salary = Salary.query.get_or_404(salary_id)
     db.session.delete(salary)

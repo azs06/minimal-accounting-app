@@ -1,6 +1,7 @@
 from flask import Blueprint, jsonify, request
 from src.extensions import db
 from datetime import datetime
+from flask_jwt_extended import jwt_required, get_jwt_identity
 
 # Import your models here to fetch data for reports
 from src.models.income import Income
@@ -15,6 +16,7 @@ from src.models.employee import Salary, Employee
 reports_bp = Blueprint("reports_bp", __name__, url_prefix="/reports")
 
 @reports_bp.route("/profit_and_loss", methods=["GET"])
+@jwt_required()
 def get_profit_and_loss_report():
     start_date_str = request.args.get('start_date')
     end_date_str = request.args.get('end_date')
@@ -31,14 +33,18 @@ def get_profit_and_loss_report():
     if start_date > end_date:
         return jsonify({"message": "Start date cannot be after end date."}), 400
 
+    current_user_id = int(get_jwt_identity())
+
     total_income = db.session.query(db.func.sum(Income.amount)).filter(
         Income.date_received >= start_date,
-        Income.date_received <= end_date
+        Income.date_received <= end_date,
+        Income.user_id == current_user_id
     ).scalar() or 0.0
 
     total_expenses = db.session.query(db.func.sum(Expense.amount)).filter(
         Expense.date_incurred >= start_date,
-        Expense.date_incurred <= end_date
+        Expense.date_incurred <= end_date,
+        Expense.user_id == current_user_id
     ).scalar() or 0.0
 
     net_profit_loss = total_income - total_expenses
@@ -53,6 +59,7 @@ def get_profit_and_loss_report():
     }), 200
 
 @reports_bp.route("/sales_report", methods=["GET"])
+@jwt_required()
 def get_sales_report():
     start_date_str = request.args.get('start_date')
     end_date_str = request.args.get('end_date')
@@ -69,9 +76,12 @@ def get_sales_report():
     if start_date > end_date:
         return jsonify({"message": "Start date cannot be after end date."}), 400
 
+    current_user_id = int(get_jwt_identity())
+
     invoices_query = Invoice.query.filter(
         Invoice.issue_date >= start_date,
-        Invoice.issue_date <= end_date
+        Invoice.issue_date <= end_date,
+        Invoice.user_id == current_user_id
     ).order_by(Invoice.issue_date.asc()) # You might also want to filter by status (e.g., 'Paid', 'Sent')
     
     invoices = invoices_query.all()
@@ -87,6 +97,7 @@ def get_sales_report():
     }), 200
 
 @reports_bp.route("/expense_report", methods=["GET"])
+@jwt_required()
 def get_expense_report():
     start_date_str = request.args.get('start_date')
     end_date_str = request.args.get('end_date')
@@ -103,9 +114,12 @@ def get_expense_report():
     if start_date > end_date:
         return jsonify({"message": "Start date cannot be after end date."}), 400
 
+    current_user_id = int(get_jwt_identity())
+
     expenses_query = Expense.query.filter(
         Expense.date_incurred >= start_date,
-        Expense.date_incurred <= end_date
+        Expense.date_incurred <= end_date,
+        Expense.user_id == current_user_id
     ).order_by(Expense.date_incurred.asc())
     
     expenses = expenses_query.all()
@@ -119,6 +133,7 @@ def get_expense_report():
     }), 200
 
 @reports_bp.route("/inventory_summary", methods=["GET"])
+@jwt_required()
 def get_inventory_summary():
     inventory_items = InventoryItem.query.order_by(InventoryItem.name.asc()).all()
 
@@ -146,6 +161,7 @@ def get_inventory_summary():
     }), 200
 
 @reports_bp.route("/employee_payroll", methods=["GET"])
+@jwt_required()
 def get_employee_payroll_summary():
     start_date_str = request.args.get('start_date')
     end_date_str = request.args.get('end_date')
@@ -162,10 +178,14 @@ def get_employee_payroll_summary():
     if start_date > end_date:
         return jsonify({"message": "Start date cannot be after end date."}), 400
 
+    # current_user_id = int(get_jwt_identity()) # Get current user
+    # For payroll, you might filter salaries recorded by the current user,
+    # or if it's a general company payroll, this might be admin-only (role check needed).
+    # For now, we'll fetch all salaries in the period if the user is authenticated.
     salaries_query = Salary.query.filter(
         Salary.payment_date >= start_date,
         Salary.payment_date <= end_date
-    ).order_by(Salary.payment_date.asc(), Salary.employee_id.asc())
+    ).order_by(Salary.payment_date.asc(), Salary.employee_id.asc()) # .filter(Salary.recorded_by_user_id == current_user_id)
     
     salaries = salaries_query.all()
 

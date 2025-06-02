@@ -16,6 +16,7 @@ from src.models.expense import Expense
 from src.models.inventory_item import InventoryItem
 from src.models.invoice import Invoice, InvoiceItem
 from src.models.employee import Employee, Salary
+from datetime import datetime # For hire_date parsing
 # Import other models here as they are created
 
 # Import blueprints
@@ -56,19 +57,60 @@ app.register_blueprint(reports_bp, url_prefix='/api') # Registered reports_bp
 @app.route('/api/register', methods=['POST'])
 def register():
     data = request.get_json()
-    if not data or not data.get('username') or not data.get('password'):
-        return jsonify({'message': 'Username and password are required'}), 400
+    if not data or not data.get('username') or not data.get('password') or not data.get('email'):
+        return jsonify({'message': 'Username, email, and password are required'}), 400
+    
     if User.query.filter_by(username=data['username']).first():
         return jsonify({'message': 'Username already exists'}), 400
+    if User.query.filter_by(email=data['email']).first():
+        return jsonify({'message': 'Email already exists'}), 400
     
-    new_user = User(username=data['username'])
+    new_user = User(username=data['username'], email=data['email'])
     new_user.set_password(data['password'])
     if data.get('role'): # Optional role assignment
         new_user.role = data.get('role')
-        
     db.session.add(new_user)
-    db.session.commit()
-    return jsonify({'message': 'User registered successfully'}), 201
+
+    employee_details = data.get('employee_details')
+    new_employee = None
+    if employee_details:
+        if not employee_details.get("first_name") or not employee_details.get("last_name"):
+            db.session.rollback()
+            return jsonify({"message": "Employee details require first_name and last_name"}), 400
+        
+        # Check for duplicate employee email if provided and different from user's email
+        if employee_details.get("email") and employee_details.get("email") != new_user.email and \
+           Employee.query.filter_by(email=employee_details["email"]).first():
+            db.session.rollback()
+            return jsonify({"message": f"Employee with email {employee_details['email']} already exists"}), 409
+
+        try:
+            hire_date_str = employee_details.get("hire_date")
+            hire_date = datetime.strptime(hire_date_str, "%Y-%m-%d").date() if hire_date_str else None
+        except ValueError:
+            db.session.rollback()
+            return jsonify({"message": "Invalid hire_date format (YYYY-MM-DD) for employee"}), 400
+
+        new_employee = Employee(
+            first_name=employee_details["first_name"],
+            last_name=employee_details["last_name"],
+            email=employee_details.get("email", new_user.email), # Default to user's email
+            phone_number=employee_details.get("phone_number"),
+            position=employee_details.get("position"),
+            hire_date=hire_date,
+            is_active=employee_details.get("is_active", True)
+        )
+        db.session.add(new_employee)
+    
+    try:
+        db.session.commit()
+        if new_employee:
+            new_employee.user_id = new_user.id
+            db.session.commit()
+        return jsonify({'message': 'User registered successfully'}), 201
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({'message': 'Database error during registration.'}), 500
 
 @app.route('/api/login', methods=['POST'])
 def login():

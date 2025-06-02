@@ -3,10 +3,8 @@ from src.extensions import db
 from src.models.invoice import Invoice, InvoiceItem
 from src.models.inventory_item import InventoryItem as Product # Alias to avoid confusion
 from datetime import datetime, date
+from flask_jwt_extended import jwt_required, get_jwt_identity
 import shortuuid # For generating unique invoice numbers
-
-# Placeholder for user authentication
-MOCK_USER_ID = 1
 
 invoice_bp = Blueprint("invoice_bp", __name__)
 
@@ -19,6 +17,7 @@ def generate_invoice_number():
             return num
 
 @invoice_bp.route("/invoices", methods=["POST"])
+@jwt_required()
 def create_invoice():
     data = request.get_json()
     if not data or not data.get("customer_name") or not data.get("items"):
@@ -36,6 +35,7 @@ def create_invoice():
     except ValueError:
         return jsonify({"message": "Invalid date format (YYYY-MM-DD) for issue_date or due_date"}), 400
 
+    current_user_id = int(get_jwt_identity())
     new_invoice = Invoice(
         invoice_number=invoice_number,
         customer_name=data["customer_name"],
@@ -45,7 +45,7 @@ def create_invoice():
         due_date=due_date,
         status=data.get("status", "Draft"),
         notes=data.get("notes"),
-        user_id=data.get("user_id", MOCK_USER_ID)
+        user_id=current_user_id
     )
     db.session.add(new_invoice)
 
@@ -97,20 +97,33 @@ def create_invoice():
     return jsonify(new_invoice.to_dict()), 201
 
 @invoice_bp.route("/invoices", methods=["GET"])
+@jwt_required()
 def get_all_invoices():
-    invoices = Invoice.query.order_by(Invoice.issue_date.desc()).all()
+    current_user_id = int(get_jwt_identity())
+    invoices = Invoice.query.filter_by(user_id=current_user_id).order_by(Invoice.issue_date.desc()).all()
     return jsonify([invoice.to_dict() for invoice in invoices]), 200
 
 @invoice_bp.route("/invoices/<int:invoice_id>", methods=["GET"])
+@jwt_required()
 def get_invoice(invoice_id):
+    current_user_id = int(get_jwt_identity())
     invoice = Invoice.query.get_or_404(invoice_id)
+    if invoice.user_id != current_user_id:
+        return jsonify({"message": "Unauthorized to access this invoice"}), 403
     return jsonify(invoice.to_dict()), 200
 
 @invoice_bp.route("/invoices/<int:invoice_id>", methods=["PUT"])
+@jwt_required()
 def update_invoice(invoice_id):
+    current_user_id = int(get_jwt_identity())
     invoice = Invoice.query.get_or_404(invoice_id)
+    if invoice.user_id != current_user_id:
+        return jsonify({"message": "Unauthorized to update this invoice"}), 403
+
     data = request.get_json()
 
+    # TODO: Consider implications for inventory if status changes or items are modified
+    # (e.g., if invoice was 'Sent' and items are changed, or status becomes 'Paid')
     if "customer_name" in data: invoice.customer_name = data["customer_name"]
     if "customer_email" in data: invoice.customer_email = data["customer_email"]
     if "customer_address" in data: invoice.customer_address = data["customer_address"]
@@ -172,8 +185,13 @@ def update_invoice(invoice_id):
     return jsonify(invoice.to_dict()), 200
 
 @invoice_bp.route("/invoices/<int:invoice_id>", methods=["DELETE"])
+@jwt_required()
 def delete_invoice(invoice_id):
+    current_user_id = int(get_jwt_identity())
     invoice = Invoice.query.get_or_404(invoice_id)
+    if invoice.user_id != current_user_id:
+        return jsonify({"message": "Unauthorized to delete this invoice"}), 403
+
     db.session.delete(invoice)
     db.session.commit()
     # TODO: Consider if inventory needs to be restocked if invoice was not a draft
