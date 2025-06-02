@@ -2,6 +2,11 @@ from src.extensions import db
 from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
 from .company import company_users # Import the association table
+import enum
+
+class RoleEnum(enum.Enum): # Simplified system-level roles
+    SYSTEM_ADMIN = "system_admin"  # Platform owner
+    USER = "user"              # Regular user of the platform, default
 
 class User(db.Model):
     __tablename__ = "users"
@@ -10,7 +15,9 @@ class User(db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(256), nullable=False) # Increased length for stronger hashes
-    role = db.Column(db.String(50), nullable=True, default='user') # System-level role: e.g., 'system_admin', 'user'
+    # Use SQLAlchemy's Enum type, storing string values from RoleEnum
+    # `native_enum=False` is often recommended for broader DB compatibility if not using PostgreSQL's native enum.
+    role = db.Column(db.Enum(RoleEnum, name="role_enum", native_enum=False), nullable=False, default=RoleEnum.USER)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     # --- Relationships ---
@@ -44,7 +51,7 @@ class User(db.Model):
             "id": self.id,
             "username": self.username,
             "email": self.email,
-            "role": self.role, # System-level role
+            "role": self.role.value if self.role else None, # Return the string value of the enum
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "employee_id": self.employee_profile.id if self.employee_profile else None,
             # "owned_company_ids": [c.id for c in self.owned_companies],

@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request
-from src.models.user import User, db
+from src.models.user import User, db, RoleEnum # Import RoleEnum
 from src.models.employee import Employee # Import Employee model
 from werkzeug.security import check_password_hash # generate_password_hash is in User model
 from sqlalchemy.exc import IntegrityError
@@ -35,9 +35,18 @@ def create_user():
     if User.query.filter_by(email=email).first():
         return jsonify({"message": f"User with email '{email}' already exists"}), 409
 
-    new_user = User(username=username, email=email)
-    if data.get('role'): # Allow setting role if provided
-        new_user.role = data.get('role')
+    # Default role is USER, can be overridden to SYSTEM_ADMIN by an existing system_admin
+    new_user = User(username=username, email=email, role=RoleEnum.USER) # Default to USER
+    
+    role_str = data.get('role')
+    if role_str:
+        try:
+            # Only system_admin can set a user as system_admin.
+            # This endpoint is already protected by @system_admin_required
+            new_user.role = RoleEnum(role_str) 
+        except ValueError:
+            return jsonify({"message": f"Invalid role: {role_str}. Valid system roles are: {[r.value for r in RoleEnum]}"}), 400
+            
     new_user.set_password(password)
     db.session.add(new_user)
 
@@ -91,7 +100,7 @@ def get_user(user_id):
     requesting_user = User.query.get(current_acting_user_id)
 
     # Allow user to get their own info, or admin to get any user's info
-    if current_acting_user_id != user_id and (not requesting_user or requesting_user.role != 'system_admin'):
+    if current_acting_user_id != user_id and (not requesting_user or requesting_user.role != RoleEnum.SYSTEM_ADMIN):
         return jsonify({"message": "Unauthorized"}), 403
         
     user = User.query.get_or_404(user_id)
@@ -105,7 +114,7 @@ def update_user(user_id):
     current_acting_user_id = int(current_acting_user_id_str)
     requesting_user = User.query.get(current_acting_user_id)
 
-    if current_acting_user_id != user_id and (not requesting_user or requesting_user.role != 'system_admin'):
+    if current_acting_user_id != user_id and (not requesting_user or requesting_user.role != RoleEnum.SYSTEM_ADMIN):
         return jsonify({"message": "Unauthorized"}), 403
     user = User.query.get_or_404(user_id)
     data = request.get_json()
@@ -131,10 +140,14 @@ def update_user(user_id):
         user.set_password(data['password'])
 
     if 'role' in data:
-        if not requesting_user or requesting_user.role != 'system_admin':
+        if not requesting_user or requesting_user.role != RoleEnum.SYSTEM_ADMIN:
             return jsonify({"message": "Unauthorized: Only system administrators can change user roles"}), 403
-        user.role = data['role'] # Only admin can change role
-
+        role_str = data['role']
+        try:
+            user.role = RoleEnum(role_str) # Convert string to Enum member
+        except ValueError:
+            return jsonify({"message": f"Invalid role: {role_str}. Valid system roles are: {[r.value for r in RoleEnum]}"}), 400
+            
 
     try:
         db.session.commit()
@@ -142,6 +155,25 @@ def update_user(user_id):
     except IntegrityError:
         db.session.rollback()
         return jsonify({"message": "Database error during update. Username or email might conflict."}), 409
+
+@user_bp.route('/users/<int:user_id>/promote-to-system-admin', methods=['POST'])
+@system_admin_required # Only system admins can promote others
+def promote_user_to_system_admin(user_id):
+    """Promotes a regular user to the system_admin role."""
+    user = User.query.get_or_404(user_id)
+
+    if user.role == RoleEnum.SYSTEM_ADMIN:
+        return jsonify({"message": f"User {user_id} is already a system administrator."}), 409
+
+    user.role = RoleEnum.SYSTEM_ADMIN
+    
+    try:
+        db.session.commit()
+        return jsonify({"message": f"User {user_id} promoted to system administrator successfully.", "user": user.to_dict()}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"message": "Failed to promote user to system administrator.", "error": str(e)}), 500
+
 
 @user_bp.route('/users/<int:user_id>', methods=['DELETE'])
 @system_admin_required # Use the new decorator

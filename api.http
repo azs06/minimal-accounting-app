@@ -462,3 +462,8 @@ Content-Type: application/json
   "old_password": "password123",
   "new_password": "newsecurepassword456"
 }
+
+### Promote a user to System Admin (Requires System Admin Auth)
+# Replace {{userIdToPromote}} with the ID of the user you want to promote
+POST http://127.0.0.1:8080/api/users/{{userIdToPromote}}/promote-to-system-admin
+Authorization: {{authToken}} # Use a token for a SYSTEM_ADMIN user

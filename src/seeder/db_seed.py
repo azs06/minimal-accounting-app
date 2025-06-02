@@ -1,7 +1,7 @@
 import click
 from flask.cli import with_appcontext
 from src.extensions import db
-from src.models.user import User
+from src.models.user import User, RoleEnum # Import RoleEnum
 from src.models.company import Company
 from datetime import datetime
 from werkzeug.security import generate_password_hash
@@ -27,7 +27,7 @@ def seed_initial_data():
             username='admin',
             email='admin@example.com',
             password_hash=admin_password_hash,
-            role='system_admin', # Assuming 'system_admin' is a valid role
+            role=RoleEnum.SYSTEM_ADMIN, # Use Enum member
             created_at=datetime.utcnow()
         )
         db.session.add(admin_user)

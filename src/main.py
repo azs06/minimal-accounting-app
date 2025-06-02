@@ -10,7 +10,7 @@ from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identi
 from flask_migrate import Migrate
 
 # Import models
-from src.models.user import User
+from src.models.user import User, RoleEnum
 from src.models.income import Income
 from src.models.expense import Expense
 from src.models.inventory_item import InventoryItem
@@ -29,6 +29,7 @@ from src.routes.employee_bp import employee_bp
 from src.routes.reports_bp import reports_bp 
 
 from src.seeder.db_seed import register_seed_commands # Import the seeder function
+
 
 
 app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), 'static'), instance_relative_config=True)
@@ -71,8 +72,7 @@ def register():
     
     new_user = User(username=data['username'], email=data['email'])
     new_user.set_password(data['password'])
-    if data.get('role'): # Optional role assignment
-        new_user.role = data.get('role')
+    new_user.role = RoleEnum.USER  # Default role is USER, can be overridden later
     db.session.add(new_user)
 
     employee_details = data.get('employee_details')
