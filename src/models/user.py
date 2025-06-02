@@ -1,12 +1,7 @@
 from src.extensions import db
 from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
-from .company import company_users # Import the association table
-import enum
-
-class RoleEnum(enum.Enum): # Simplified system-level roles
-    SYSTEM_ADMIN = "system_admin"  # Platform owner
-    USER = "user"              # Regular user of the platform, default
+from .enums import RoleEnum # Import RoleEnum from the new enums.py
 
 class User(db.Model):
     __tablename__ = "users"
@@ -24,8 +19,8 @@ class User(db.Model):
     # Companies this user owns (one-to-many)
     owned_companies = db.relationship("Company", back_populates="owner", lazy="dynamic", foreign_keys="Company.owner_id")
 
-    # Companies this user is a member of (many-to-many)
-    member_of_companies = db.relationship("Company", secondary=company_users, back_populates="members", lazy="dynamic")
+    # Association object for company membership and roles
+    company_associations = db.relationship("CompanyUser", back_populates="user", lazy="dynamic", cascade="all, delete-orphan")
 
     # Employee profile linked to this user (one-to-one)
     employee_profile = db.relationship("Employee", back_populates="user", uselist=False)

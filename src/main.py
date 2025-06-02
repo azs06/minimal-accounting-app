@@ -27,6 +27,7 @@ from src.routes.inventory_bp import inventory_bp
 from src.routes.invoice_bp import invoice_bp
 from src.routes.employee_bp import employee_bp
 from src.routes.reports_bp import reports_bp 
+from src.routes.company_bp import company_bp # Import the company blueprint
 
 from src.seeder.db_seed import register_seed_commands # Import the seeder function
 
