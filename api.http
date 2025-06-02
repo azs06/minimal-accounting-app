@@ -4,7 +4,11 @@
 ###
 
 @authToken =
+@adminAuthToken =
 @companyId =
+@testUserId = # Will capture ID of 'testuser1'
+@adminTestUserId = # Will capture ID of 'admintestuser' for promotion example
+@createdUserByAdminId = # Will capture ID of user created by system_admin
 
 # =========================================
 # User Management (from main.py and user_bp.py)
@@ -17,22 +21,35 @@ Content-Type: application/json
 {
   "username": "testuser1",
   "password": "password123",
-  "email": "testuser1@example.com"
-  # "role": "user" # System-level role, might be set by default or by admin
+  "email": "testuser1@example.com",
+  "employee_details": {
+    "first_name": "Test",
+    "last_name": "UserOne",
+    "email": "test.user.one@example.com",
+    "phone_number": "555-0001",
+    "position": "Tester",
+    "hire_date": "2023-01-10",
+    "is_active": true
+  }
 }
+@testUserId = {{register_new_user.response.body.id}} # Assuming registration returns user ID
 
-### Register an admin user (from main.py)
+### Register another user to be promoted to admin later (from main.py)
+# Name: registerAdminTestUser
 POST http://127.0.0.1:8080/api/register
 Content-Type: application/json
 
 {
-  "username": "adminuser",
+  "username": "admintestuser",
   "password": "adminpassword",
-  "email": "admin@example.com"
-  # "role": "system_admin" # System-level role
+  "email": "admintestuser@example.com"
+  # Note: Public registration defaults to 'user' role.
+  # This user will be promoted by the seeded 'admin' user.
 }
+@adminTestUserId = {{registerAdminTestUser.response.body.id}} # Assuming registration returns user ID
 
 ### Login user (from main.py)
+# Name: loginTestUser
 POST http://127.0.0.1:8080/api/login
 Content-Type: application/json
 
@@ -40,45 +57,100 @@ Content-Type: application/json
   "username": "testuser1",
   "password": "password123"
 }
-@authToken = {{login_user.response.headers.Authorization}}
-# @authToken = Bearer {{login_user.response.body.access_token}} # Adjust based on your auth response
+@authToken = Bearer {{loginTestUser.response.body.access_token}}
 
-### Create a new user (using user_bp.py, assuming MOCK_USER_ID or future auth)
-# Note: The /api/register route is likely preferred for initial user creation.
-# This /api/users POST might be for system_admin-driven creation of any user.
-POST http://127.0.0.1:8080/api/users
+### Login seeded system_admin user (from main.py)
+# This assumes the 'admin' user with 'adminpassword' was seeded as SYSTEM_ADMIN
+# Name: loginSystemAdmin
+POST http://127.0.0.1:8080/api/login
 Content-Type: application/json
 
 {
-  "username": "anotheruser",
-  "email": "another@example.com",
-  "password": "securepassword",
-  "role": "user" # System-level role
+  "username": "admin",
+  "password": "adminpassword"
 }
-@createdUserId = {{create_user.response.body.id}}
+@adminAuthToken = Bearer {{loginSystemAdmin.response.body.access_token}}
+
+### Create a new user (by System Admin - user_bp.py)
+# This endpoint is for system_admin to create users, potentially with system_admin role.
+# Name: createUserByAdmin
+POST http://127.0.0.1:8080/api/users
+Authorization: {{adminAuthToken}}
+Content-Type: application/json
+
+{
+  "username": "staffuser2",
+  "email": "staffuser2@example.com",
+  "password": "staffpassword",
+  "role": "user", # Can be "user" or "system_admin"
+  "employee_details": {
+    "first_name": "Staff",
+    "last_name": "UserTwo",
+    "email": "staff.user.two@example.com",
+    "phone_number": "555-0002",
+    "position": "Accountant",
+    "hire_date": "2023-02-01"
+  }
+}
+@createdUserByAdminId = {{createUserByAdmin.response.body.id}}
 
 ### Get all users
 GET http://127.0.0.1:8080/api/users
-Authorization: {{authToken}}
+Authorization: {{adminAuthToken}} # Requires system_admin
 
-### Get a specific user (replace {{createdUserId}} or use a known ID)
-GET http://127.0.0.1:8080/api/users/{{createdUserId}}
-Authorization: {{authToken}}
+### Get a specific user (User can get self, System Admin can get any)
+# Example: System Admin gets the user they just created
+GET http://127.0.0.1:8080/api/users/{{createdUserByAdminId}}
+Authorization: {{adminAuthToken}}
 
-### Update a user (replace {{createdUserId}} or use a known ID)
-PUT http://127.0.0.1:8080/api/users/{{createdUserId}}
-Authorization: {{authToken}}
+### Get a specific user (User gets self)
+GET http://127.0.0.1:8080/api/users/{{testUserId}}
+Authorization: {{authToken}} # Token of 'testuser1'
+
+### Update a user (User can update self - cannot change own role)
+PUT http://127.0.0.1:8080/api/users/{{testUserId}}
+Authorization: {{authToken}} # Token of 'testuser1'
 Content-Type: application/json
 
 {
-  "username": "anotheruser_updated",
-  "email": "another_updated@example.com",
-  "role": "user" # System-level role
+  "username": "testuser1_updated_by_self",
+  "email": "testuser1.updated.by.self@example.com"
+  # "role": "system_admin" # This would be ignored or cause an error if not a system_admin making the request
 }
 
-### Delete a user (replace {{createdUserId}} or use a known ID)
-# DELETE http://127.0.0.1:8080/api/users/{{createdUserId}}
-# Authorization: {{authToken}}
+### Update a user (System Admin updates another user, can change role)
+PUT http://127.0.0.1:8080/api/users/{{createdUserByAdminId}}
+Authorization: {{adminAuthToken}}
+Content-Type: application/json
+
+{
+  "username": "staffuser2_updated_by_admin",
+  "email": "staffuser2.updated.by.admin@example.com",
+  "role": "user" # System Admin can change role to "user" or "system_admin"
+}
+
+### Delete a user (System Admin only)
+# DELETE http://127.0.0.1:8080/api/users/{{createdUserByAdminId}}
+# Authorization: {{adminAuthToken}}
+
+### Update My Password
+PUT http://127.0.0.1:8080/api/users/me/password
+Authorization: {{authToken}} # Token of the logged-in user (e.g., testuser1)
+Content-Type: application/json
+
+{
+  "old_password": "password123",
+  "new_password": "newsecurepassword456"
+}
+
+### Promote a user to System Admin (Requires System Admin Auth)
+# Example: Promoting 'admintestuser' (ID: {{adminTestUserId}}) using the seeded 'admin' user's token
+POST http://127.0.0.1:8080/api/users/{{adminTestUserId}}/promote-to-system-admin
+Authorization: {{adminAuthToken}} # Token of the seeded 'admin' (SYSTEM_ADMIN)
+
+### Example: Attempt to promote a user with a non-admin token (should fail)
+# POST http://127.0.0.1:8080/api/users/{{adminTestUserId}}/promote-to-system-admin
+# Authorization: {{authToken}} # Token of 'testuser1' (regular user)
 
 
 # =========================================
@@ -86,52 +158,56 @@ Content-Type: application/json
 # =========================================
 
 ### Create a new company (Authenticated user becomes the owner)
+# Name: createNewCompany
 POST http://127.0.0.1:8080/api/companies
 Authorization: {{authToken}}
 Content-Type: application/json
 
 {
-  "name": "My Awesome SaaS Business Inc."
+  "name": "TestUser1 Innovations Inc."
 }
-@companyId = {{create_a_new_company.response.body.id}}
+@companyId = {{createNewCompany.response.body.id}}
 
 ### Get all companies for the authenticated user (owned or member of)
 GET http://127.0.0.1:8080/api/companies
 Authorization: {{authToken}}
 
 ### Get a specific company
+# User must be owner, member, or system_admin
 GET http://127.0.0.1:8080/api/companies/{{companyId}}
 Authorization: {{authToken}}
 
-### Update a company (Only owner/company admin)
+### Update a company (Only company owner, company admin, or system_admin)
 PUT http://127.0.0.1:8080/api/companies/{{companyId}}
 Authorization: {{authToken}}
 Content-Type: application/json
 
 {
-  "name": "My Awesome SaaS Business Ltd."
+  "name": "TestUser1 Innovations Ltd."
 }
 
-### Add a user to a company (Only company owner/admin)
-# Assuming 'anotheruser' (ID: {{createdUserId}}) was created earlier
+### Add a user to a company (Only company owner, company admin, or system_admin)
+# Adding 'staffuser2' (created by admin) to 'TestUser1 Innovations Ltd.'
+# The user performing this action ({{authToken}}) must have admin rights on the company.
 POST http://127.0.0.1:8080/api/companies/{{companyId}}/users
 Authorization: {{authToken}}
 Content-Type: application/json
 
 {
-  "user_id": {{createdUserId}},
+  "user_id": {{createdUserByAdminId}}, # ID of 'staffuser2'
   "role_in_company": "editor" # e.g., admin, editor, viewer
 }
 
 ### List users in a company
+# User must be member or system_admin
 GET http://127.0.0.1:8080/api/companies/{{companyId}}/users
 Authorization: {{authToken}}
 
-### Remove a user from a company (Only company owner/admin)
-# DELETE http://127.0.0.1:8080/api/companies/{{companyId}}/users/{{createdUserId}}
+### Remove a user from a company (Only company owner, company admin, or system_admin)
+# DELETE http://127.0.0.1:8080/api/companies/{{companyId}}/users/{{createdUserByAdminId}}
 # Authorization: {{authToken}}
 
-### Delete a company (Only owner)
+### Delete a company (Only company owner or system_admin)
 # DELETE http://127.0.0.1:8080/api/companies/{{companyId}}
 # Authorization: {{authToken}}
 
@@ -141,6 +217,7 @@ Authorization: {{authToken}}
 # =========================================
 
 ### Add a new employee
+# Name: addEmployee
 POST http://127.0.0.1:8080/api/companies/{{companyId}}/employees
 Authorization: {{authToken}}
 Content-Type: application/json
@@ -152,9 +229,10 @@ Content-Type: application/json
   "phone_number": "555-0101",
   "position": "Software Engineer",
   "hire_date": "2023-01-15",
-  "is_active": true
+  "is_active": true,
+  "user_id": null # Optional: Link to an existing User ID (e.g., {{testUserId}}) if this employee is also a platform user
 }
-@employeeId = {{add_employee.response.body.id}}
+@employeeId = {{addEmployee.response.body.id}}
 
 ### Get all employees
 GET http://127.0.0.1:8080/api/companies/{{companyId}}/employees
@@ -175,6 +253,7 @@ Content-Type: application/json
 }
 
 ### Add salary for an employee
+# Name: addSalaryForEmployee
 # Note: The 'recorded_by_user_id' should be set by the backend based on the authenticated user.
 POST http://127.0.0.1:8080/api/companies/{{companyId}}/employees/{{employeeId}}/salaries
 Authorization: {{authToken}}
@@ -189,20 +268,20 @@ Content-Type: application/json
   "notes": "February Salary"
   # "recorded_by_user_id": 1 # Backend should fill this with authenticated user's ID
 }
-@salaryId = {{add_salary_for_employee.response.body.id}}
+@salaryId = {{addSalaryForEmployee.response.body.id}}
 
 ### Get all salaries for an employee
 GET http://127.0.0.1:8080/api/companies/{{companyId}}/employees/{{employeeId}}/salaries
 Authorization: {{authToken}}
 
 ### Get a specific salary record
-# This endpoint might remain global if salary IDs are unique across the system,
-# but the backend MUST ensure the salary belongs to an employee of an accessible company.
-GET http://127.0.0.1:8080/api/salaries/{{salaryId}}
+# This endpoint is now scoped to the company and employee.
+GET http://127.0.0.1:8080/api/companies/{{companyId}}/employees/{{employeeId}}/salaries/{{salaryId}}
 Authorization: {{authToken}}
 
 ### Update a salary record
-PUT http://127.0.0.1:8080/api/salaries/{{salaryId}}
+# Scoped to company and employee.
+PUT http://127.0.0.1:8080/api/companies/{{companyId}}/employees/{{employeeId}}/salaries/{{salaryId}}
 Authorization: {{authToken}}
 Content-Type: application/json
 
@@ -211,7 +290,8 @@ Content-Type: application/json
 }
 
 ### Delete a salary record
-# DELETE http://127.0.0.1:8080/api/salaries/{{salaryId}}
+# Scoped to company and employee.
+# DELETE http://127.0.0.1:8080/api/companies/{{companyId}}/employees/{{employeeId}}/salaries/{{salaryId}}
 # Authorization: {{authToken}}
 
 ### Delete an employee
@@ -224,6 +304,7 @@ Content-Type: application/json
 # =========================================
 
 ### Add a new inventory item
+# Name: addInventoryItem
 POST http://127.0.0.1:8080/api/companies/{{companyId}}/inventory
 Authorization: {{authToken}}
 Content-Type: application/json
@@ -237,7 +318,7 @@ Content-Type: application/json
   "quantity_on_hand": 100,
   "unit_of_measure": "pcs"
 }
-@inventoryItemId = {{add_inventory_item.response.body.id}}
+@inventoryItemId = {{addInventoryItem.response.body.id}}
 
 ### Get all inventory items
 GET http://127.0.0.1:8080/api/companies/{{companyId}}/inventory
@@ -267,6 +348,7 @@ Content-Type: application/json
 # =========================================
 
 ### Add an income record
+# Name: addIncomeRecord
 # Note: The 'user_id' should be set by the backend based on the authenticated user.
 POST http://127.0.0.1:8080/api/companies/{{companyId}}/income
 Authorization: {{authToken}}
@@ -278,9 +360,9 @@ Content-Type: application/json
   "date_received": "2023-03-10",
   "category": "Consulting",
   "notes": "Invoice #INV-2023-001"
-  # "user_id": 1 # Backend should fill this with authenticated user's ID
+  # "user_id": 1 # Backend should fill this with authenticated user's ID (recorder)
 }
-@incomeId = {{add_income_record.response.body.id}}
+@incomeId = {{addIncomeRecord.response.body.id}}
 
 ### Get all income records
 GET http://127.0.0.1:8080/api/companies/{{companyId}}/income
@@ -310,6 +392,7 @@ Content-Type: application/json
 # =========================================
 
 ### Add an expense record
+# Name: addExpenseRecord
 POST http://127.0.0.1:8080/api/companies/{{companyId}}/expenses
 Authorization: {{authToken}}
 Content-Type: application/json
@@ -321,9 +404,9 @@ Content-Type: application/json
   "category": "Office Supplies",
   "vendor": "Staples",
   "notes": "Receipt #12345"
-  # "user_id": 1 # Backend should fill this with authenticated user's ID
+  # "user_id": 1 # Backend should fill this with authenticated user's ID (recorder)
 }
-@expenseId = {{add_expense_record.response.body.id}}
+@expenseId = {{addExpenseRecord.response.body.id}}
 
 ### Get all expense records
 GET http://127.0.0.1:8080/api/companies/{{companyId}}/expenses
@@ -353,6 +436,7 @@ Content-Type: application/json
 # =========================================
 
 ### Create an invoice
+# Name: createInvoice
 POST http://127.0.0.1:8080/api/companies/{{companyId}}/invoices
 Authorization: {{authToken}}
 Content-Type: application/json
@@ -365,7 +449,7 @@ Content-Type: application/json
   "due_date": "2023-04-14",
   "status": "Draft",
   "notes": "Project Alpha deliverables"
-  # "user_id": 1, # Backend should fill this with authenticated user's ID
+  # "created_by_user_id": 1, # Backend should fill this with authenticated user's ID
   "items": [
     {
       "item_id": {{inventoryItemId}}, # Assuming inventoryItemId is set from previous inventory creation
@@ -380,7 +464,7 @@ Content-Type: application/json
     }
   ]
 }
-@invoiceId = {{create_invoice.response.body.id}}
+@invoiceId = {{createInvoice.response.body.id}}
 
 ### Get all invoices
 GET http://127.0.0.1:8080/api/companies/{{companyId}}/invoices
@@ -453,17 +537,4 @@ GET http://127.0.0.1:8080/api/companies/{{companyId}}/reports/employee_payroll?s
 Authorization: {{authToken}}
 
 
-### Update My Password
-PUT http://127.0.0.1:8080/api/users/me/password
-Authorization: {{authToken}} # Make sure authToken is set from login
-Content-Type: application/json
 
-{
-  "old_password": "password123",
-  "new_password": "newsecurepassword456"
-}
-
-### Promote a user to System Admin (Requires System Admin Auth)
-# Replace {{userIdToPromote}} with the ID of the user you want to promote
-POST http://127.0.0.1:8080/api/users/{{userIdToPromote}}/promote-to-system-admin
-Authorization: {{authToken}} # Use a token for a SYSTEM_ADMIN user
