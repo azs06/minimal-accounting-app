@@ -451,3 +451,14 @@ Authorization: {{authToken}}
 ### Get Employee Payroll Summary
 GET http://127.0.0.1:8080/api/companies/{{companyId}}/reports/employee_payroll?start_date=2023-01-01&end_date=2023-03-31
 Authorization: {{authToken}}
+
+
+### Update My Password
+PUT http://127.0.0.1:8080/api/users/me/password
+Authorization: {{authToken}} # Make sure authToken is set from login
+Content-Type: application/json
+
+{
+  "old_password": "password123",
+  "new_password": "newsecurepassword456"
+}

@@ -142,3 +142,31 @@ def delete_user(user_id):
     db.session.delete(user)
     db.session.commit()
     return '', 204
+
+@user_bp.route('/users/me/password', methods=['PUT'])
+@jwt_required()
+def update_my_password():
+    """Allows the currently authenticated user to update their own password."""
+    current_user_id = int(get_jwt_identity())
+    user = User.query.get_or_404(current_user_id)
+
+    data = request.get_json()
+    if not data:
+        return jsonify({"message": "Request body must be JSON"}), 400
+
+    old_password = data.get('old_password')
+    new_password = data.get('new_password')
+
+    if not old_password or not new_password:
+        return jsonify({"message": "Both old_password and new_password are required"}), 400
+
+    if not user.check_password(old_password):
+        return jsonify({"message": "Incorrect old password"}), 401
+
+    if len(new_password) < 6: # Example: Enforce minimum password length
+        return jsonify({"message": "New password must be at least 6 characters long"}), 400
+
+    user.set_password(new_password)
+    db.session.commit()
+
+    return jsonify({"message": "Password updated successfully"}), 200
