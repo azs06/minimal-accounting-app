@@ -26,8 +26,10 @@ from src.routes.expense_bp import expense_bp
 from src.routes.inventory_bp import inventory_bp
 from src.routes.invoice_bp import invoice_bp
 from src.routes.employee_bp import employee_bp
-from src.routes.reports_bp import reports_bp # Added reports_bp
-# from src.routes.auth import auth_bp # Example for auth blueprint
+from src.routes.reports_bp import reports_bp 
+
+from src.seeder.db_seed import register_seed_commands # Import the seeder function
+
 
 app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), 'static'), instance_relative_config=True)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'a_very_secret_key_that_should_be_changed_in_production')
@@ -43,6 +45,9 @@ db.init_app(app)
 jwt = JWTManager(app)
 migrate = Migrate(app, db)
 
+# Register seed commands
+register_seed_commands(app)
+
 # Register Blueprints
 app.register_blueprint(user_bp, url_prefix='/api')
 app.register_blueprint(income_bp, url_prefix='/api')
@@ -50,8 +55,7 @@ app.register_blueprint(expense_bp, url_prefix='/api')
 app.register_blueprint(inventory_bp, url_prefix='/api')
 app.register_blueprint(invoice_bp, url_prefix='/api')
 app.register_blueprint(employee_bp, url_prefix='/api')
-app.register_blueprint(reports_bp, url_prefix='/api') # Registered reports_bp
-# app.register_blueprint(auth_bp, url_prefix='/auth')
+app.register_blueprint(reports_bp, url_prefix='/api') 
 
 # Basic User Registration and Login (Example - to be moved to auth blueprint)
 @app.route('/api/register', methods=['POST'])
@@ -142,8 +146,6 @@ def serve(path):
         else:
             return f"Welcome to the Minimal Accounting Software! DB: {db_path}. API endpoints available at /api/..., including /api/reports/profit_and_loss etc.", 200
 
-with app.app_context():
-    db.create_all() # Create database tables for all models imported
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
