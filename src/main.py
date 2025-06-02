@@ -15,7 +15,8 @@ from src.models.income import Income
 from src.models.expense import Expense
 from src.models.inventory_item import InventoryItem
 from src.models.invoice import Invoice, InvoiceItem
-from src.models.employee import Employee, Salary
+from src.models.employee import Employee
+from src.models.salary import Salary # Import Salary from its new file
 from datetime import datetime # For hire_date parsing
 # Import other models here as they are created
 

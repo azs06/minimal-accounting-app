@@ -8,7 +8,8 @@ from src.models.income import Income
 from src.models.expense import Expense
 from src.models.invoice import Invoice 
 from src.models.inventory_item import InventoryItem
-from src.models.employee import Salary, Employee
+from src.models.employee import Employee
+from src.models.salary import Salary # Import Salary from its new file
 
 # It's common to define the blueprint with its own segment of the URL.
 # Since it's registered with /api in main.py, and these are report routes,

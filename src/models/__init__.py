@@ -8,4 +8,5 @@ from .income import Income
 from .expense import Expense
 from .inventory_item import InventoryItem
 from .invoice import Invoice, InvoiceItem
-from .employee import Employee, Salary
+from .employee import Employee
+from .salary import Salary # Import Salary from its new file

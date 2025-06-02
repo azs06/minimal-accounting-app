@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 from src.extensions import db
-from src.models.employee import Employee, Salary
+from src.models.employee import Employee
+from src.models.salary import Salary # Import Salary from its new file
 from src.models.user import User # Import User model
 from datetime import datetime, date
 from sqlalchemy.exc import IntegrityError
