@@ -1,5 +1,6 @@
 from flask import Blueprint, jsonify, request
 from src.models.user import User, db, RoleEnum # Import RoleEnum
+from src.models.company import Company # Import Company model
 from src.models.employee import Employee # Import Employee model
 from werkzeug.security import check_password_hash # generate_password_hash is in User model
 from sqlalchemy.exc import IntegrityError
@@ -53,19 +54,25 @@ def create_user():
     new_employee = None
     if employee_details:
         if not employee_details.get("first_name") or not employee_details.get("last_name"):
-            db.session.rollback() # Rollback user creation if employee details are bad
+            # No need to rollback user yet, as it's not added to session if employee creation fails first
             return jsonify({"message": "Employee details require first_name and last_name"}), 400
         
+        company_id_for_employee = employee_details.get("company_id")
+        if not company_id_for_employee:
+            return jsonify({"message": "company_id is required within employee_details"}), 400
+        
+        company = Company.query.get(company_id_for_employee)
+        if not company:
+            return jsonify({"message": f"Company with ID {company_id_for_employee} not found"}), 404
+
         # Check for duplicate employee email if provided
         if employee_details.get("email") and Employee.query.filter_by(email=employee_details["email"]).first():
-            db.session.rollback()
             return jsonify({"message": f"Employee with email {employee_details['email']} already exists"}), 409
 
         try:
             hire_date_str = employee_details.get("hire_date")
             hire_date = datetime.strptime(hire_date_str, "%Y-%m-%d").date() if hire_date_str else None
         except ValueError:
-            db.session.rollback()
             return jsonify({"message": "Invalid hire_date format (YYYY-MM-DD) for employee"}), 400
 
         new_employee = Employee(
@@ -75,7 +82,8 @@ def create_user():
             phone_number=employee_details.get("phone_number"),
             position=employee_details.get("position"),
             hire_date=hire_date,
-            is_active=employee_details.get("is_active", True)
+            is_active=employee_details.get("is_active", True),
+            company_id=company.id # Assign the validated company_id
             # user_id will be set after user is committed and has an ID
         )
         db.session.add(new_employee)

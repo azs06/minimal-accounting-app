@@ -90,7 +90,8 @@ Content-Type: application/json
     "phone_number": "555-0002",
     "position": "Accountant",
     "hire_date": "2023-02-01"
-  }
+    "company_id": {{companyId}} // Assuming companyId is set, e.g., to the default company
+  } 
 }
 @createdUserByAdminId = {{createUserByAdmin.response.body.id}}
 
