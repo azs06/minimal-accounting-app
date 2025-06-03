@@ -1,30 +1,48 @@
 from flask import Blueprint, request, jsonify
 from src.extensions import db
 from src.models.invoice import Invoice, InvoiceItem
-from src.models.inventory_item import InventoryItem as Product # Alias to avoid confusion
+from src.models.inventory_item import InventoryItem as Product # Alias for clarity
+from src.models.company import Company
+from src.models.user import User # Though _get_current_user returns User object
+from src.models.enums import CompanyRoleEnum, RoleEnum
 from datetime import datetime, date
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask_jwt_extended import jwt_required # get_jwt_identity is in _get_current_user
 import shortuuid # For generating unique invoice numbers
+from src.routes.company_bp import _get_current_user, _check_permission # Re-use helper functions
 
 invoice_bp = Blueprint("invoice_bp", __name__)
 
 # Helper to generate unique invoice number
-def generate_invoice_number():
+def generate_invoice_number(company_id_for_uniqueness):
     prefix = date.today().strftime("INV-%Y%m%d-")
     while True:
         num = prefix + shortuuid.ShortUUID().random(length=4).upper()
-        if not Invoice.query.filter_by(invoice_number=num).first():
+        # Check for uniqueness within the specific company
+        if not Invoice.query.filter_by(company_id=company_id_for_uniqueness, invoice_number=num).first():
             return num
 
 @invoice_bp.route("/invoices", methods=["POST"])
 @jwt_required()
-def create_invoice():
+def create_invoice(company_id): # Add company_id from URL
+    current_user = _get_current_user()
+    if not current_user:
+        return jsonify({"message": "Authentication required"}), 401
+
+    company = Company.query.get_or_404(company_id)
+
+    if not _check_permission(current_user, company,
+                             allowed_company_roles=[CompanyRoleEnum.ADMIN, CompanyRoleEnum.EDITOR],
+                             allow_owner=True,
+                             allow_system_admin=True):
+        return jsonify({"message": "Unauthorized to create invoices for this company"}), 403
+
     data = request.get_json()
     if not data or not data.get("customer_name") or not data.get("items"):
         return jsonify({"message": "Missing required fields (customer_name, items)"}), 400
 
-    invoice_number = data.get("invoice_number", generate_invoice_number())
-    if Invoice.query.filter_by(invoice_number=invoice_number).first():
+    invoice_number = data.get("invoice_number", generate_invoice_number(company_id))
+    # Check for uniqueness within the company
+    if Invoice.query.filter_by(company_id=company_id, invoice_number=invoice_number).first():
         return jsonify({"message": f"Invoice number {invoice_number} already exists. Please use a unique invoice number or let the system generate one."}), 409
 
     try:
@@ -35,7 +53,6 @@ def create_invoice():
     except ValueError:
         return jsonify({"message": "Invalid date format (YYYY-MM-DD) for issue_date or due_date"}), 400
 
-    current_user_id = int(get_jwt_identity())
     new_invoice = Invoice(
         invoice_number=invoice_number,
         customer_name=data["customer_name"],
@@ -45,7 +62,8 @@ def create_invoice():
         due_date=due_date,
         status=data.get("status", "Draft"),
         notes=data.get("notes"),
-        user_id=current_user_id
+        user_id=current_user.id, # User who created the invoice
+        company_id=company_id # Assign to the current company
     )
     db.session.add(new_invoice)
 
@@ -77,7 +95,12 @@ def create_invoice():
         )
         # Link to inventory item if item_id is provided
         if item_data.get("item_id"):
-            invoice_item_obj.item_id = item_data.get("item_id")
+            product_id = item_data.get("item_id")
+            product = Product.query.get(product_id)
+            if not product or product.company_id != company_id:
+                db.session.rollback()
+                return jsonify({"message": f"Product with ID {product_id} not found or does not belong to this company."}), 404
+            invoice_item_obj.item_id = product_id
 
         invoice_item_obj.invoice = new_invoice 
         db.session.add(invoice_item_obj) # Explicitly add item to session
@@ -98,29 +121,66 @@ def create_invoice():
 
 @invoice_bp.route("/invoices", methods=["GET"])
 @jwt_required()
-def get_all_invoices():
-    current_user_id = int(get_jwt_identity())
-    invoices = Invoice.query.filter_by(user_id=current_user_id).order_by(Invoice.issue_date.desc()).all()
+def get_all_invoices(company_id): # Add company_id from URL
+    current_user = _get_current_user()
+    if not current_user:
+        return jsonify({"message": "Authentication required"}), 401
+
+    company = Company.query.get_or_404(company_id)
+
+    if not _check_permission(current_user, company,
+                             allowed_company_roles=[CompanyRoleEnum.ADMIN, CompanyRoleEnum.EDITOR, CompanyRoleEnum.VIEWER],
+                             allow_owner=True,
+                             allow_system_admin=True):
+        return jsonify({"message": "Unauthorized to view invoices for this company"}), 403
+
+    invoices = Invoice.query.filter_by(company_id=company_id).order_by(Invoice.issue_date.desc()).all()
     return jsonify([invoice.to_dict() for invoice in invoices]), 200
+
 
 @invoice_bp.route("/invoices/<int:invoice_id>", methods=["GET"])
 @jwt_required()
-def get_invoice(invoice_id):
-    current_user_id = int(get_jwt_identity())
+def get_invoice(company_id, invoice_id): # Add company_id from URL
+    current_user = _get_current_user()
+    if not current_user:
+        return jsonify({"message": "Authentication required"}), 401
+
+    company = Company.query.get_or_404(company_id) # Ensure company exists
     invoice = Invoice.query.get_or_404(invoice_id)
-    if invoice.user_id != current_user_id:
-        return jsonify({"message": "Unauthorized to access this invoice"}), 403
+
+    if invoice.company_id != company_id:
+        return jsonify({"message": "Invoice not found in this company"}), 404
+
+    if not _check_permission(current_user, company,
+                             allowed_company_roles=[CompanyRoleEnum.ADMIN, CompanyRoleEnum.EDITOR, CompanyRoleEnum.VIEWER],
+                             allow_owner=True,
+                             allow_system_admin=True):
+        return jsonify({"message": "Unauthorized to view this invoice"}), 403
+
     return jsonify(invoice.to_dict()), 200
 
 @invoice_bp.route("/invoices/<int:invoice_id>", methods=["PUT"])
 @jwt_required()
-def update_invoice(invoice_id):
-    current_user_id = int(get_jwt_identity())
+def update_invoice(company_id, invoice_id): # Add company_id from URL
+    current_user = _get_current_user()
+    if not current_user:
+        return jsonify({"message": "Authentication required"}), 401
+
+    company = Company.query.get_or_404(company_id) # Ensure company exists
     invoice = Invoice.query.get_or_404(invoice_id)
-    if invoice.user_id != current_user_id:
+
+    if invoice.company_id != company_id:
+        return jsonify({"message": "Invoice not found in this company"}), 404
+
+    if not _check_permission(current_user, company,
+                             allowed_company_roles=[CompanyRoleEnum.ADMIN, CompanyRoleEnum.EDITOR],
+                             allow_owner=True,
+                             allow_system_admin=True):
         return jsonify({"message": "Unauthorized to update this invoice"}), 403
 
     data = request.get_json()
+    if not data:
+        return jsonify({"message": "Request body must be JSON"}), 400
 
     # TODO: Consider implications for inventory if status changes or items are modified
     # (e.g., if invoice was 'Sent' and items are changed, or status becomes 'Paid')
@@ -168,7 +228,12 @@ def update_invoice(invoice_id):
             )
             # Link to inventory item if item_id is provided
             if item_data.get("item_id"):
-                new_invoice_item.item_id = item_data.get("item_id")
+                product_id = item_data.get("item_id")
+                product = Product.query.get(product_id)
+                if not product or product.company_id != company_id:
+                    db.session.rollback()
+                    return jsonify({"message": f"Product with ID {product_id} not found or does not belong to this company."}), 404
+                new_invoice_item.item_id = product_id
 
             db.session.add(new_invoice_item) # Explicitly add item to session
         invoice.total_amount = new_total_amount
@@ -186,14 +251,26 @@ def update_invoice(invoice_id):
 
 @invoice_bp.route("/invoices/<int:invoice_id>", methods=["DELETE"])
 @jwt_required()
-def delete_invoice(invoice_id):
-    current_user_id = int(get_jwt_identity())
+def delete_invoice(company_id, invoice_id): # Add company_id from URL
+    current_user = _get_current_user()
+    if not current_user:
+        return jsonify({"message": "Authentication required"}), 401
+
+    company = Company.query.get_or_404(company_id) # Ensure company exists
     invoice = Invoice.query.get_or_404(invoice_id)
-    if invoice.user_id != current_user_id:
+
+    if invoice.company_id != company_id:
+        return jsonify({"message": "Invoice not found in this company"}), 404
+
+    if not _check_permission(current_user, company,
+                             allowed_company_roles=[CompanyRoleEnum.ADMIN], # Typically only ADMIN or owner can delete
+                             allow_owner=True,
+                             allow_system_admin=True):
         return jsonify({"message": "Unauthorized to delete this invoice"}), 403
 
-    db.session.delete(invoice)
-    db.session.commit()
+    # The InvoiceItem records will be deleted due to cascade="all, delete-orphan" on Invoice.items
+    db.session.delete(invoice) 
+    db.session.commit() 
     # TODO: Consider if inventory needs to be restocked if invoice was not a draft
     # (e.g., if items were deducted from inventory previously)
     return '', 204
