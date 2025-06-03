@@ -169,6 +169,7 @@ Content-Type: application/json
 @companyId = {{createNewCompany.response.body.id}}
 
 ### Get all companies for the authenticated user (owned or member of)
+# Name: getAllMyCompanies
 GET http://127.0.0.1:8080/api/companies
 Authorization: {{authToken}}
 
@@ -217,10 +218,12 @@ Authorization: {{authToken}}
 # =========================================
 
 ### Add a new employee
-# Name: addEmployee
+# Name: addEmployeeJane
 POST http://127.0.0.1:8080/api/companies/{{companyId}}/employees
 Authorization: {{authToken}}
 Content-Type: application/json
+# Assumes {{authToken}} belongs to a user who is owner/admin/editor of {{companyId}}
+
 
 {
   "first_name": "Jane",
@@ -232,30 +235,65 @@ Content-Type: application/json
   "is_active": true,
   "user_id": null # Optional: Link to an existing User ID (e.g., {{testUserId}}) if this employee is also a platform user
 }
-@employeeId = {{addEmployee.response.body.id}}
+@employeeJaneId = {{addEmployeeJane.response.body.id}}
 
-### Get all employees
+### Add another employee (John Smith, linked to an existing user 'staffuser2')
+# Name: addEmployeeJohn
+POST http://127.0.0.1:8080/api/companies/{{companyId}}/employees
+Authorization: {{authToken}}
+Content-Type: application/json
+
+{
+  "first_name": "John",
+  "last_name": "Smith",
+  "email": "john.smith.emp@example.com", # Can be different from user's email
+  "phone_number": "555-0202",
+  "position": "Accountant",
+  "hire_date": "2023-03-01",
+  "is_active": true,
+  "user_id": {{createdUserByAdminId}} # Linking to 'staffuser2'
+}
+@employeeJohnId = {{addEmployeeJohn.response.body.id}}
+
+
+### Get all employees for the company
 GET http://127.0.0.1:8080/api/companies/{{companyId}}/employees
 Authorization: {{authToken}}
 
-### Get a specific employee
-GET http://127.0.0.1:8080/api/companies/{{companyId}}/employees/{{employeeId}}
+### Get a specific employee (Jane)
+GET http://127.0.0.1:8080/api/companies/{{companyId}}/employees/{{employeeJaneId}}
 Authorization: {{authToken}}
 
-### Update an employee
-PUT http://127.0.0.1:8080/api/companies/{{companyId}}/employees/{{employeeId}}
+### Update an employee (Jane)
+PUT http://127.0.0.1:8080/api/companies/{{companyId}}/employees/{{employeeJaneId}}
 Authorization: {{authToken}}
 Content-Type: application/json
 
 {
   "position": "Senior Software Engineer",
-  "phone_number": "555-0102"
+  "phone_number": "555-0102",
+  "email": "jane.doette.updated@example.com"
 }
 
-### Add salary for an employee
+### Create a user account for an existing employee (Jane)
+# Name: createUserForJane
+POST http://127.0.0.1:8080/api/companies/{{companyId}}/employees/{{employeeJaneId}}/create-user
+Authorization: {{authToken}} # User performing this needs company admin rights
+Content-Type: application/json
+
+{
+  "username": "janed",
+  "password": "janePassword123",
+  "email": "jane.doette.user@example.com", # Can be different from employee email
+  "role": "user" # System role for the new user
+}
+@janeUserId = {{createUserForJane.response.body.user.id}}
+
+
+### Add salary for an employee (Jane)
 # Name: addSalaryForEmployee
 # Note: The 'recorded_by_user_id' should be set by the backend based on the authenticated user.
-POST http://127.0.0.1:8080/api/companies/{{companyId}}/employees/{{employeeId}}/salaries
+POST http://127.0.0.1:8080/api/companies/{{companyId}}/employees/{{employeeJaneId}}/salaries
 Authorization: {{authToken}}
 Content-Type: application/json
 
@@ -270,32 +308,33 @@ Content-Type: application/json
 }
 @salaryId = {{addSalaryForEmployee.response.body.id}}
 
-### Get all salaries for an employee
-GET http://127.0.0.1:8080/api/companies/{{companyId}}/employees/{{employeeId}}/salaries
+### Get all salaries for an employee (Jane)
+GET http://127.0.0.1:8080/api/companies/{{companyId}}/employees/{{employeeJaneId}}/salaries
 Authorization: {{authToken}}
 
 ### Get a specific salary record
 # This endpoint is now scoped to the company and employee.
-GET http://127.0.0.1:8080/api/companies/{{companyId}}/employees/{{employeeId}}/salaries/{{salaryId}}
+GET http://127.0.0.1:8080/api/companies/{{companyId}}/employees/{{employeeJaneId}}/salaries/{{salaryId}}
 Authorization: {{authToken}}
 
 ### Update a salary record
 # Scoped to company and employee.
-PUT http://127.0.0.1:8080/api/companies/{{companyId}}/employees/{{employeeId}}/salaries/{{salaryId}}
+PUT http://127.0.0.1:8080/api/companies/{{companyId}}/employees/{{employeeJaneId}}/salaries/{{salaryId}}
 Authorization: {{authToken}}
 Content-Type: application/json
 
 {
-  "notes": "February Salary (Corrected)"
+  "notes": "February Salary (Corrected with bonus)",
+  "gross_amount": 5200.00
 }
 
 ### Delete a salary record
 # Scoped to company and employee.
-# DELETE http://127.0.0.1:8080/api/companies/{{companyId}}/employees/{{employeeId}}/salaries/{{salaryId}}
+# DELETE http://127.0.0.1:8080/api/companies/{{companyId}}/employees/{{employeeJaneId}}/salaries/{{salaryId}}
 # Authorization: {{authToken}}
 
 ### Delete an employee
-# DELETE http://127.0.0.1:8080/api/companies/{{companyId}}/employees/{{employeeId}}
+# DELETE http://127.0.0.1:8080/api/companies/{{companyId}}/employees/{{employeeJaneId}}
 # Authorization: {{authToken}}
 
 # =========================================
