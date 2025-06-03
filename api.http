@@ -305,7 +305,7 @@ Content-Type: application/json
 
 ### Add a new inventory item
 # Name: addInventoryItem
-POST http://127.0.0.1:8080/api/companies/{{companyId}}/inventory
+POST http://127.0.0.1:8080/api/companies/{{companyId}}/inventory # Path already includes companyId
 Authorization: {{authToken}}
 Content-Type: application/json
 
@@ -321,15 +321,15 @@ Content-Type: application/json
 @inventoryItemId = {{addInventoryItem.response.body.id}}
 
 ### Get all inventory items
-GET http://127.0.0.1:8080/api/companies/{{companyId}}/inventory
+GET http://127.0.0.1:8080/api/companies/{{companyId}}/inventory # Path already includes companyId
 Authorization: {{authToken}}
 
 ### Get a specific inventory item
-GET http://127.0.0.1:8080/api/companies/{{companyId}}/inventory/{{inventoryItemId}}
+GET http://127.0.0.1:8080/api/companies/{{companyId}}/inventory/{{inventoryItemId}} # Path already includes companyId
 Authorization: {{authToken}}
 
 ### Update an inventory item
-PUT http://127.0.0.1:8080/api/companies/{{companyId}}/inventory/{{inventoryItemId}}
+PUT http://127.0.0.1:8080/api/companies/{{companyId}}/inventory/{{inventoryItemId}} # Path already includes companyId
 Authorization: {{authToken}}
 Content-Type: application/json
 
@@ -339,7 +339,7 @@ Content-Type: application/json
 }
 
 ### Delete an inventory item
-# DELETE http://127.0.0.1:8080/api/companies/{{companyId}}/inventory/{{inventoryItemId}}
+# DELETE http://127.0.0.1:8080/api/companies/{{companyId}}/inventory/{{inventoryItemId}} # Path already includes companyId
 # Authorization: {{authToken}}
 
 # =========================================
@@ -535,6 +535,3 @@ Authorization: {{authToken}}
 ### Get Employee Payroll Summary
 GET http://127.0.0.1:8080/api/companies/{{companyId}}/reports/employee_payroll?start_date=2023-01-01&end_date=2023-03-31
 Authorization: {{authToken}}
-
-
-

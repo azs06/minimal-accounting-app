@@ -53,11 +53,13 @@ register_seed_commands(app)
 
 # Register Blueprints
 app.register_blueprint(user_bp, url_prefix='/api')
-app.register_blueprint(income_bp, url_prefix='/api')
-app.register_blueprint(expense_bp, url_prefix='/api')
-app.register_blueprint(inventory_bp, url_prefix='/api')
-app.register_blueprint(invoice_bp, url_prefix='/api')
-app.register_blueprint(employee_bp, url_prefix='/api')
+app.register_blueprint(company_bp, url_prefix='/api') # Already correct
+# These blueprints should be nested under a company
+app.register_blueprint(income_bp, url_prefix='/api/companies/<int:company_id>')
+app.register_blueprint(expense_bp, url_prefix='/api/companies/<int:company_id>')
+app.register_blueprint(inventory_bp, url_prefix='/api/companies/<int:company_id>')
+app.register_blueprint(invoice_bp, url_prefix='/api/companies/<int:company_id>')
+app.register_blueprint(employee_bp, url_prefix='/api/companies/<int:company_id>')
 app.register_blueprint(reports_bp, url_prefix='/api') 
 
 # Basic User Registration and Login (Example - to be moved to auth blueprint)
