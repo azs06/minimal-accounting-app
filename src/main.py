@@ -60,7 +60,7 @@ app.register_blueprint(expense_bp, url_prefix='/api/companies/<int:company_id>')
 app.register_blueprint(inventory_bp, url_prefix='/api/companies/<int:company_id>')
 app.register_blueprint(invoice_bp, url_prefix='/api/companies/<int:company_id>')
 app.register_blueprint(employee_bp, url_prefix='/api/companies/<int:company_id>')
-app.register_blueprint(reports_bp, url_prefix='/api') 
+app.register_blueprint(reports_bp, url_prefix='/api/companies/<int:company_id>') # Make reports company-scoped
 
 # Basic User Registration and Login (Example - to be moved to auth blueprint)
 @app.route('/api/register', methods=['POST'])

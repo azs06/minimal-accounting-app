@@ -1,16 +1,32 @@
 from flask import Blueprint, request, jsonify
 from src.extensions import db
 from src.models.expense import Expense # Changed from Income to Expense
+from src.models.company import Company
+from src.models.user import User # Though _get_current_user returns User object
+from src.models.enums import CompanyRoleEnum, RoleEnum
 from datetime import datetime
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask_jwt_extended import jwt_required # get_jwt_identity is in _get_current_user
 from sqlalchemy.exc import IntegrityError
+from src.routes.company_bp import _get_current_user, _check_permission # Re-use helper functions
 
 
 expense_bp = Blueprint("expense_bp", __name__)
 
 @expense_bp.route("/expenses", methods=["POST"])
 @jwt_required()
-def add_expense(): # Renamed from add_income
+def add_expense_record(company_id): # Renamed function and added company_id
+    current_user = _get_current_user()
+    if not current_user:
+        return jsonify({"message": "Authentication required"}), 401
+
+    company = Company.query.get_or_404(company_id)
+
+    if not _check_permission(current_user, company,
+                             allowed_company_roles=[CompanyRoleEnum.ADMIN, CompanyRoleEnum.EDITOR],
+                             allow_owner=True,
+                             allow_system_admin=True):
+        return jsonify({"message": "Unauthorized to add expenses to this company"}), 403
+
     data = request.get_json()
     if not data or not data.get("description") or data.get("amount") is None or not data.get("date_incurred"):
         return jsonify({"message": "Missing required fields (description, amount, date_incurred)"}), 400
@@ -23,7 +39,6 @@ def add_expense(): # Renamed from add_income
     except ValueError:
         return jsonify({"message": "Invalid data format for amount or date_incurred (YYYY-MM-DD)"}), 400
 
-    current_user_id = int(get_jwt_identity())
     new_expense = Expense(
         description=data["description"],
         amount=amount,
@@ -31,7 +46,8 @@ def add_expense(): # Renamed from add_income
         category=data.get("category"),
         vendor=data.get("vendor"),
         notes=data.get("notes"),
-        user_id=current_user_id
+        user_id=current_user.id, # User who recorded this expense
+        company_id=company_id # Assign to the current company
     )
     try:
         db.session.add(new_expense)
@@ -47,31 +63,58 @@ def add_expense(): # Renamed from add_income
 
 @expense_bp.route("/expenses", methods=["GET"])
 @jwt_required()
-def get_all_expenses(): # Renamed from get_all_income
-    current_user_id = int(get_jwt_identity())
-    expenses = Expense.query.filter_by(user_id=current_user_id).all()
+def get_all_expense_records(company_id): # Renamed function and added company_id
+    current_user = _get_current_user()
+    if not current_user:
+        return jsonify({"message": "Authentication required"}), 401
+
+    company = Company.query.get_or_404(company_id)
+
+    if not _check_permission(current_user, company,
+                             allowed_company_roles=[CompanyRoleEnum.ADMIN, CompanyRoleEnum.EDITOR, CompanyRoleEnum.VIEWER],
+                             allow_owner=True,
+                             allow_system_admin=True):
+        return jsonify({"message": "Unauthorized to view expenses for this company"}), 403
+
+    expenses = Expense.query.filter_by(company_id=company_id).order_by(Expense.date_incurred.desc()).all()
     return jsonify([expense.to_dict() for expense in expenses]), 200
 
 @expense_bp.route("/expenses/<int:expense_id>", methods=["GET"])
 @jwt_required()
-def get_expense(expense_id): # Renamed from get_income
-    current_user_id = int(get_jwt_identity())
+def get_expense_record(company_id, expense_id): # Renamed function and added company_id
+    current_user = _get_current_user()
+    if not current_user:
+        return jsonify({"message": "Authentication required"}), 401
+
+    company = Company.query.get_or_404(company_id) # Ensure company exists
     expense = Expense.query.get_or_404(expense_id)
-    if expense.user_id != current_user_id:
-        return jsonify({"message": "Unauthorized to access this expense record"}), 403
+
+    if expense.company_id != company_id:
+        return jsonify({"message": "Expense record not found in this company"}), 404
+
+    if not _check_permission(current_user, company,
+                             allowed_company_roles=[CompanyRoleEnum.ADMIN, CompanyRoleEnum.EDITOR, CompanyRoleEnum.VIEWER],
+                             allow_owner=True,
+                             allow_system_admin=True):
+        return jsonify({"message": "Unauthorized to view this expense record"}), 403
+
     return jsonify(expense.to_dict()), 200
 
 @expense_bp.route("/expenses/<int:expense_id>", methods=["PUT"])
 @jwt_required()
-def update_expense(expense_id): # Renamed from update_income
-    current_user_id = int(get_jwt_identity())
-    expense = Expense.query.get_or_404(expense_id)
-    if expense.user_id != current_user_id:
-        return jsonify({"message": "Unauthorized to update this expense record"}), 403
+def update_expense_record(company_id, expense_id): # Renamed function and added company_id
+    current_user = _get_current_user()
+    if not current_user:
+        return jsonify({"message": "Authentication required"}), 401
 
+    company = Company.query.get_or_404(company_id) # Ensure company exists
+    expense = Expense.query.get_or_404(expense_id)
     data = request.get_json()
+    updated = False # Flag to check if any actual update happened
+
     if data.get("description"):
         expense.description = data["description"]
+        updated = True
     if data.get("amount") is not None:
         try:
             amount = float(data["amount"])
@@ -80,35 +123,65 @@ def update_expense(expense_id): # Renamed from update_income
             expense.amount = amount
         except ValueError:
             return jsonify({"message": "Invalid amount format"}), 400
+        updated = True
     if data.get("date_incurred"):
         try:
             expense.date_incurred = datetime.strptime(data["date_incurred"], "%Y-%m-%d").date()
         except ValueError:
             return jsonify({"message": "Invalid date_incurred format (YYYY-MM-DD)"}), 400
+        updated = True
     if data.get("category"):
         expense.category = data["category"]
+        updated = True
     if data.get("vendor"):
         expense.vendor = data["vendor"]
+        updated = True
     if data.get("notes"):
         expense.notes = data["notes"]
+        updated = True
     
-    try:
-        db.session.commit()
-        return jsonify(expense.to_dict()), 200
-    except IntegrityError:
-        db.session.rollback()
-        return jsonify({"message": "Database error: Could not update expense record."}), 500
-    except Exception as e: # Catch other potential errors
-        db.session.rollback()
-        return jsonify({"message": "An unexpected error occurred.", "error": str(e)}), 500
+    if expense.company_id != company_id:
+        return jsonify({"message": "Expense record not found in this company"}), 404
+
+    if not _check_permission(current_user, company,
+                             allowed_company_roles=[CompanyRoleEnum.ADMIN, CompanyRoleEnum.EDITOR],
+                             allow_owner=True,
+                             allow_system_admin=True):
+        return jsonify({"message": "Unauthorized to update expenses in this company"}), 403
+
+    if updated:
+        try:
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+            return jsonify({"message": "Database error: Could not update expense record."}), 500
+        except Exception as e: # Catch other potential errors
+            db.session.rollback()
+            return jsonify({"message": "An unexpected error occurred.", "error": str(e)}), 500
+    return jsonify(expense.to_dict()), 200
 
 @expense_bp.route("/expenses/<int:expense_id>", methods=["DELETE"])
 @jwt_required()
-def delete_expense(expense_id): # Renamed from delete_income
-    current_user_id = int(get_jwt_identity())
+def delete_expense_record(company_id, expense_id): # Renamed function and added company_id
+    current_user = _get_current_user()
+    if not current_user:
+        return jsonify({"message": "Authentication required"}), 401
+
+    company = Company.query.get_or_404(company_id) # Ensure company exists
     expense = Expense.query.get_or_404(expense_id)
-    if expense.user_id != current_user_id:
-        return jsonify({"message": "Unauthorized to delete this expense record"}), 403
-    db.session.delete(expense)
-    db.session.commit()
-    return '', 204
+
+    if expense.company_id != company_id:
+        return jsonify({"message": "Expense record not found in this company"}), 404
+
+    if not _check_permission(current_user, company,
+                             allowed_company_roles=[CompanyRoleEnum.ADMIN], # Typically only admins or owners can delete
+                             allow_owner=True,
+                             allow_system_admin=True):
+        return jsonify({"message": "Unauthorized to delete expenses from this company"}), 403
+    try:
+        db.session.delete(expense)
+        db.session.commit()
+        return '', 204
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"message": "Failed to delete expense record", "error": str(e)}), 500
