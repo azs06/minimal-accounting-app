@@ -132,7 +132,7 @@ def login():
     
     # Identity can be any data that is json serializable
     access_token = create_access_token(identity=str(user.id)) # Cast user.id to string
-    return jsonify(access_token=access_token, user_id=user.id, role=user.role), 200
+    return jsonify(access_token=access_token, user_id=user.id, role=user.role.value if user.role else None), 200
 
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')

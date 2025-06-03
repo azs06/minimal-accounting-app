@@ -24,8 +24,8 @@ def seed_initial_data():
         admin_password_hash = generate_password_hash('adminpassword') # Choose a strong default password
         admin_user = User(
             id=1, # Explicitly set ID if other parts of your system rely on it for the default company
-            username='admin',
-            email='admin@example.com',
+            username='soikat',
+            email='soikat@example.com',
             password_hash=admin_password_hash,
             role=RoleEnum.SYSTEM_ADMIN, # Use Enum member
             created_at=datetime.utcnow()

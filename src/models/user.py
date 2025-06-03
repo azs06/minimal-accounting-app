@@ -11,8 +11,8 @@ class User(db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(256), nullable=False) # Increased length for stronger hashes
     # Use SQLAlchemy's Enum type, storing string values from RoleEnum
-    # `native_enum=False` is often recommended for broader DB compatibility if not using PostgreSQL's native enum.
-    role = db.Column(db.Enum(RoleEnum, name="role_enum", native_enum=False), nullable=False, default=RoleEnum.USER)
+    # `native_enum=False` is recommended for broader DB compatibility. Explicit length ensures varchar is wide enough.
+    role = db.Column(db.Enum(RoleEnum, native_enum=False, length=50), nullable=False, default=RoleEnum.USER) # Removed name="role_enum"
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     # --- Relationships ---
