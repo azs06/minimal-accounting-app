@@ -5,9 +5,9 @@
 
 @authToken =
 @adminAuthToken =
-@companyId =
+@companyId = 1
 @testUserId = # Will capture ID of 'testuser1'
-@adminTestUserId = # Will capture ID of 'admintestuser' for promotion example
+@adminTestUserId = 1
 @createdUserByAdminId = # Will capture ID of user created by system_admin
 
 # =========================================
