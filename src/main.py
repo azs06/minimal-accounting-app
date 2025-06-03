@@ -90,12 +90,12 @@ def register():
 @app.route('/api/login', methods=['POST'])
 def login():
     data = request.get_json()
-    if not data or not data.get('username') or not data.get('password'):
-        return jsonify({'message': 'Username and password are required'}), 400
+    if not data or not data.get('email') or not data.get('password'):
+        return jsonify({'message': 'Email and password are required'}), 400
     
-    user = User.query.filter_by(username=data['username']).first()
+    user = User.query.filter_by(email=data['email']).first()
     if not user or not user.check_password(data['password']):
-        return jsonify({'message': 'Invalid username or password'}), 401
+        return jsonify({'message': 'Invalid email or password'}), 401
     
     # Identity can be any data that is json serializable
     access_token = create_access_token(identity=str(user.id)) # Cast user.id to string
