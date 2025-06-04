@@ -3,11 +3,14 @@ from src.extensions import db
 from src.models.company import Company
 from src.models.user import User
 from src.models.company_user import CompanyUser # This will now correctly import the model
+import sys # Import sys for stderr
 from src.models.enums import RoleEnum, CompanyRoleEnum # Import from the new enums.py
 from sqlalchemy.exc import IntegrityError
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from src.decorators.auth_decorators import system_admin_required # Import the decorator
 
-company_bp = Blueprint('company_bp', __name__, url_prefix='/api/companies')
+# The full '/api/companies' prefix is handled by the app.register_blueprint in main.py
+company_bp = Blueprint('company_bp', __name__) # No url_prefix here
 
 def _get_current_user():
     """Helper to get the current authenticated User object."""
@@ -45,7 +48,7 @@ def _check_permission(user, company, allowed_company_roles=None, allow_owner=Fal
     return False
 
 
-@company_bp.route('', methods=['POST'])
+@company_bp.route('/', methods=['POST'])
 @jwt_required()
 def create_company():
     current_user = _get_current_user()
@@ -69,9 +72,10 @@ def create_company():
         return jsonify({"message": "An unexpected error occurred", "error": str(e)}), 500
 
 
-@company_bp.route('', methods=['GET'])
+@company_bp.route('/', methods=['GET'])
 @jwt_required()
 def get_companies():
+    # print("DEBUG: Attempting to execute get_companies in company_bp.", file=sys.stderr) # Keep or remove debug print
     current_user = _get_current_user()
     if not current_user:
         return jsonify({"message": "Invalid user token"}), 401
@@ -87,8 +91,17 @@ def get_companies():
     
     return jsonify([company.to_dict() for company in all_accessible_companies]), 200
 
+@company_bp.route('/all-system', methods=['GET']) # Route relative to blueprint root (now '/')
+@system_admin_required # Ensures only system admins can access
+def get_all_companies_system():
+    """Returns a list of all companies in the system. For System Admin use."""
+    companies = Company.query.order_by(Company.name).all()
+    return jsonify([company.to_dict() for company in companies]), 200
 
-@company_bp.route('/<int:company_id>', methods=['GET'])
+
+
+
+@company_bp.route('/<int:company_id>', methods=['GET']) # Route relative to blueprint root (now '/')
 @jwt_required()
 def get_company(company_id):
     current_user = _get_current_user()
@@ -106,7 +119,7 @@ def get_company(company_id):
     return jsonify(company.to_dict_detailed() if hasattr(company, 'to_dict_detailed') else company.to_dict()), 200
 
 
-@company_bp.route('/<int:company_id>', methods=['PUT'])
+@company_bp.route('/<int:company_id>', methods=['PUT']) # Route relative to blueprint root (now '/')
 @jwt_required()
 def update_company(company_id):
     current_user = _get_current_user()
@@ -140,7 +153,7 @@ def update_company(company_id):
         return jsonify({"message": "An unexpected error occurred", "error": str(e)}), 500
 
 
-@company_bp.route('/<int:company_id>', methods=['DELETE'])
+@company_bp.route('/<int:company_id>', methods=['DELETE']) # Route relative to blueprint root (now '/')
 @jwt_required()
 def delete_company(company_id):
     current_user = _get_current_user()
@@ -164,7 +177,7 @@ def delete_company(company_id):
 
 # --- Company User Management ---
 
-@company_bp.route('/<int:company_id>/users', methods=['POST'])
+@company_bp.route('/<int:company_id>/users', methods=['POST']) # Route relative to blueprint root (now '/')
 @jwt_required()
 def add_user_to_company(company_id):
     current_user = _get_current_user()
@@ -217,7 +230,7 @@ def add_user_to_company(company_id):
         return jsonify({"message": "An unexpected error occurred", "error": str(e)}), 500
 
 
-@company_bp.route('/<int:company_id>/users', methods=['GET'])
+@company_bp.route('/<int:company_id>/users', methods=['GET']) # Route relative to blueprint root (now '/')
 @jwt_required()
 def list_users_in_company(company_id):
     current_user = _get_current_user()
@@ -237,7 +250,7 @@ def list_users_in_company(company_id):
     return jsonify([cu.to_dict_with_user_details() if hasattr(cu, 'to_dict_with_user_details') else cu.to_dict() for cu in company_users]), 200
 
 
-@company_bp.route('/<int:company_id>/users/<int:user_id_to_remove>', methods=['DELETE'])
+@company_bp.route('/<int:company_id>/users/<int:user_id_to_remove>', methods=['DELETE']) # Route relative to blueprint root (now '/')
 @jwt_required()
 def remove_user_from_company(company_id, user_id_to_remove):
     current_user = _get_current_user()

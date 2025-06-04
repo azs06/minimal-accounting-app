@@ -62,7 +62,7 @@ register_seed_commands(app)
 
 # Register Blueprints
 app.register_blueprint(user_bp, url_prefix='/api')
-app.register_blueprint(company_bp, url_prefix='/api') 
+app.register_blueprint(company_bp, url_prefix='/api/companies') # Register company blueprint at the correct prefix
 app.register_blueprint(income_bp, url_prefix='/api/companies/<int:company_id>')
 app.register_blueprint(expense_bp, url_prefix='/api/companies/<int:company_id>')
 app.register_blueprint(inventory_bp, url_prefix='/api/companies/<int:company_id>')
