@@ -7,6 +7,7 @@ from src.extensions import db
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, JWTManager
 from flask_migrate import Migrate
+from flask_cors import CORS # Import CORS
 
 # Import models
 from src.models.user import User, RoleEnum
@@ -39,6 +40,7 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'a_very_secret_key_that_
 app.config["JWT_SECRET_KEY"] = os.environ.get('JWT_SECRET_KEY', "another_super_secret_jwt_key_change_me") # Change this in your environment!
 
 # Configure SQLite database
+# Ensure the instance folder exists
 os.makedirs(app.instance_path, exist_ok=True)
 db_path = os.path.join(app.instance_path, 'accounting_database.db')
 app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{db_path}"
@@ -46,6 +48,13 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db.init_app(app)
 jwt = JWTManager(app)
+
+# Initialize CORS
+# For development, you can allow all origins:
+CORS(app)
+# For production, you should restrict origins:
+# CORS(app, resources={r"/api/*": {"origins": "https://your-frontend-domain.com"}})
+
 migrate = Migrate(app, db)
 
 # Register seed commands
@@ -100,6 +109,11 @@ def login():
     # Identity can be any data that is json serializable
     access_token = create_access_token(identity=str(user.id)) # Cast user.id to string
     return jsonify(access_token=access_token, user_id=user.id, role=user.role.value if user.role else None), 200
+
+@app.route('/api/health', methods=['GET'])
+def health_check():
+    """Simple health check endpoint."""
+    return jsonify({"status": "ok"}), 200
 
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
