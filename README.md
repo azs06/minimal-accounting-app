@@ -5,7 +5,8 @@
 This is a minimal accounting software designed for small businesses with 7-12 employees. The application helps track income, expenses, inventory, invoices, and employee salaries, providing essential financial reports.
 
 ## Features
-
+- **User Authentication** : Secure login for users
+- **Company specific data**: Each company has its own data
 - **Income Tracking**: Record and manage all income sources
 - **Expense Tracking**: Track and categorize business expenses
 - **Inventory Management**: Manage product inventory with stock levels
