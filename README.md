@@ -5,6 +5,7 @@
 This is a minimal accounting software designed for small businesses with 7-12 employees. The application helps track income, expenses, inventory, invoices, and employee salaries, providing essential financial reports.
 
 ## Features
+
 - **User Authentication** : Secure login for users
 - **Company specific data**: Each company has its own data
 - **Income Tracking**: Record and manage all income sources
@@ -19,13 +20,16 @@ This is a minimal accounting software designed for small businesses with 7-12 em
 1. Extract the accounting_app_deployment.zip file to a directory of your choice
 2. Open a terminal/command prompt and navigate to the extracted directory
 3. Create a virtual environment:
+
    ```
    python -m venv venv
    ```
+
 4. Activate the virtual environment:
    - Windows: `venv\Scripts\activate`
    - macOS/Linux: `source venv/bin/activate`
 5. Install the required dependencies:
+
    ```
    pip install -r requirements.txt
    ```
@@ -33,11 +37,14 @@ This is a minimal accounting software designed for small businesses with 7-12 em
 ## Running the Application
 
 1. With the virtual environment activated, start the application:
+
    ```
    export FLASK_APP=src/main.py
    flask run --host=0.0.0.0 --port=8080
    ```
+
 2. Open your web browser and navigate to:
+
    ```
    http://localhost:8080
    ```
