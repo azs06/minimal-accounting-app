@@ -42,6 +42,7 @@ This is a minimal accounting software designed for small businesses with 7-12 em
    export FLASK_APP=src/main.py
    flask run --host=0.0.0.0 --port=8080
    ```
+   or use : ./run_app.sh
 
 2. Open your web browser and navigate to:
 
